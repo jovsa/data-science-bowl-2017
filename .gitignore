@@ -1,3 +1,4 @@
 data/
 .ftpconfig
 .DS_Store
+*.ipynb_checkpoints
