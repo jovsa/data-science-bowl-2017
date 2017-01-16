@@ -1,21 +1,21 @@
 # main
 
 ## Local Modules
-
-#temp
+import helpers.helpers as helpers
 
 
 ## Global Modules
 
 
 # Constants
-data_url = "../../data-science-bowl-2017-data/"
-labels_data = 'stage1_labels.csv'
-train_data = 'stage1/'
-
+train_data_folder = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
+labels_data_folder = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
 
 # Pre-processing
-​
+​train = helpers.verify_location(train_data_folder)
+print("---")
+print(train)
+
 ​
 # Model Building & Traning
 
