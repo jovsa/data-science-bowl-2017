@@ -15,7 +15,6 @@ labels_data_folder = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
 ​train = helpers.verify_location(train_data_folder)
 print("---")
 print(train)
-
 ​
 # Model Building & Traning
 
