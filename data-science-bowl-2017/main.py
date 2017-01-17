@@ -19,7 +19,7 @@ patient_data = pd.DataFrame(list(patient_data.items()), columns=["id", "scans"])
 labels = pd.read_csv(labels_loc)
 train = pd.merge(patient_data, labels, how="inner", on=['id'])
 
-print(train.head())
+
 
 # Model Building and Traning
 
