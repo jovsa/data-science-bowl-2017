@@ -92,7 +92,7 @@ def calc_features():
         feats = net.predict(batch)
         print(feats.shape)
         new_loc = re.sub(r'stage1', 'stage1_processed_mx', folder)
-        np.save(new_loc, feats)
+        #np.save(new_loc, feats)
 
 
 def train_xgboost():
