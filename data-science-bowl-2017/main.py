@@ -85,23 +85,23 @@ def calc_features():
 def train_xgboost():
     df = pd.read_csv(labels)
     #print(df.head())
-    x = np.array([np.mean(np.load(stage1_processed + '/segment_lungs_fill_%s.npy' % str(id)), axis=0) for id in df['id'][:2].tolist()])
+    x = np.array([np.mean(np.load(stage1_features + '/segment_lungs_fill_%s.npy' % str(id)), axis=0) for id in df['id'][:2].tolist()])
     print(x.shape)
-    y = df['cancer'].as_matrix()
-    trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y,
-                                                                   test_size=0.20)
-
-    clf = xgb.XGBRegressor(max_depth=10,
-                           n_estimators=1500,
-                           min_child_weight=9,
-                           learning_rate=0.05,
-                           nthread=8,
-                           subsample=0.80,
-                           colsample_bytree=0.80,
-                           seed=4242)
-
-    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
-    return clf
+    # y = df['cancer'].as_matrix()
+    # trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y,
+    #                                                                test_size=0.20)
+    #
+    # clf = xgb.XGBRegressor(max_depth=10,
+    #                        n_estimators=1500,
+    #                        min_child_weight=9,
+    #                        learning_rate=0.05,
+    #                        nthread=8,
+    #                        subsample=0.80,
+    #                        colsample_bytree=0.80,
+    #                        seed=4242)
+    #
+    # clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
+    # return clf
 
 
 def make_submit():
@@ -125,8 +125,8 @@ if __name__ == '__main__':
     stage1_processed = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
     stage1_features = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_mx/'
 
-    calc_features()
-    #make_submit()
+    #calc_features()
+    make_submit()
     print("done")
 
 
