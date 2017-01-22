@@ -5,6 +5,7 @@ import helpers.helpers as helpers
 import numpy as np
 import pandas as pd
 import re
+import sys
 
 import cv2
 import dicom
@@ -15,16 +16,9 @@ from sklearn import cross_validation
 import glob
 from matplotlib import pyplot as plt
 
-
-
 ######################
 def pre_process():
     # Pre-processing
-
-    stage1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
-    labels = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
-    stage1_processed = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
-
     stage1_loc = helpers.verify_location(stage1)
     labels_loc = helpers.verify_location(labels)
 
@@ -54,14 +48,13 @@ def get_3d_data(path):
 
 
 def get_data_id(path):
-    sample_image = get_3d_data(path)
+    sample_image = np.load(path)
     sample_image[sample_image == -2000] = 0
-    # f, plots = plt.subplots(4, 5, sharex='col', sharey='row', figsize=(10, 8))
 
     batch = []
     cnt = 0
-    dx = 40
-    ds = 512
+    dx = int((40.0/512.0) * sample_image.shape[1])
+    ds = sample_image.shape[1]
     for i in range(0, sample_image.shape[0] - 3, 3):
         tmp = []
         for j in range(3):
@@ -75,30 +68,24 @@ def get_data_id(path):
         tmp = np.array(tmp)
         batch.append(np.array(tmp))
 
-        # if cnt < 20:
-        #     plots[cnt // 5, cnt % 5].axis('off')
-        #     plots[cnt // 5, cnt % 5].imshow(np.swapaxes(tmp, 0, 2))
-        # cnt += 1
-
-    # plt.show()
     batch = np.array(batch)
     return batch
 
-
 def calc_features():
     net = get_extractor()
-    for folder in glob.glob('/kaggle/dev/data-science-bowl-2017-data/stage1/*')[:2]:
+    count = 0
+    for folder in glob.glob(stage1_processed + 'segment_lungs_fill_*'):
+        p_id = re.match(r'segment_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder)).group(1)
+        print('Processing patient ' + str(count) + ' id: ' + p_id)
         batch = get_data_id(folder)
         feats = net.predict(batch)
-        print(feats.shape)
-        new_loc = re.sub(r'stage1', 'stage1_processed_mx', folder)
-        #np.save(new_loc, feats)
-
+        np.save(stage1_features + p_id, feats)
+        count = count + 1
 
 def train_xgboost():
-    df = pd.read_csv('/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv')
+    df = pd.read_csv(labels)
     #print(df.head())
-    x = np.array([np.mean(np.load('/kaggle/dev/data-science-bowl-2017-data/stage1_processed/segment_lungs_fill_%s.npy' % str(id)), axis=0) for id in df['id'][:2].tolist()])
+    x = np.array([np.mean(np.load(stage1_processed + '/segment_lungs_fill_%s.npy' % str(id)), axis=0) for id in df['id'][:2].tolist()])
     print(x.shape)
     y = df['cancer'].as_matrix()
     trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y,
@@ -132,8 +119,14 @@ def make_submit():
 
 
 if __name__ == '__main__':
-    #calc_features()
-    make_submit()
+    data = '/kaggle/dev/data-science-bowl-2017-data/'
+    stage1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
+    labels = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
+    stage1_processed = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
+    stage1_features = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_mx/'
+
+    calc_features()
+    #make_submit()
     print("done")
 
 
