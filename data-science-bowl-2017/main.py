@@ -154,7 +154,7 @@ def make_submit():
     # Outputting submission file
     timestamp = datetime.datetime.now()
     filename = 'submissions/submission[' + str(timestamp) + " GMT].csv"
-    #submission.to_csv(filename, index=False)
+    submission.to_csv(filename, index=False)
 
     # Submission file analysis
     print("----submission file analysis----")
