@@ -146,16 +146,24 @@ def make_submit():
     pred = clf.predict(x)
     df['cancer'] = pred
 
-    #submission prep
+    #Submission preparation
     submission = pd.merge(submission_sample, df, how='left', on=['id'])
+    submission = submission.iloc[:,(0,2)]
+    submission = submission.rename(index=str, columns={"cancer_y": "cancer"})
 
-    naive = pd.read_csv(naive_submission)
-    for s in submission['id']:
-        print(s)
-
+    # Outputting submission file
     timestamp = datetime.datetime.now()
-    filename = 'submissions/submission[' + str(timestamp) + "].csv"
-    submission.to_csv(filename, index=False)
+    filename = 'submissions/submission[' + str(timestamp) + " GMT].csv"
+    #submission.to_csv(filename, index=False)
+
+    # Submission file analysis
+    print("----submission file analysis----")
+    patient_count = submission['id'].count()
+    predecited = submission['cancer'].count()
+    print("Total number of patients: " + str(patient_count))
+    print("Number of predictions: " + str(predecited))
+    print("submission file stored at: " + filename)
+
 
 
 if __name__ == '__main__':
