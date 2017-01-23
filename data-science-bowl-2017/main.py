@@ -152,8 +152,8 @@ def make_submit():
     submission = submission.rename(index=str, columns={"cancer_y": "cancer"})
 
     # Outputting submission file
-    timestamp = datetime.datetime.now()
-    filename = 'submissions/submission[' + str(timestamp) + " GMT].csv"
+    timestamp = datetime.datetime.now().isoformat()
+    filename = 'submissions/submission-' + str(timestamp) + ".csv"
     submission.to_csv(filename, index=False)
 
     # Submission file analysis
