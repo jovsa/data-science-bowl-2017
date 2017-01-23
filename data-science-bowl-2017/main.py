@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import re
 import sys
+import datetime
 
 import cv2
 import dicom
@@ -82,40 +83,79 @@ def calc_features():
         np.save(stage1_features + p_id, feats)
         count = count + 1
 
+def normalize(image):
+    MIN_BOUND = -1000.0
+    MAX_BOUND = 400.0
+    image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
+    image[image>1] = 1.
+    image[image<0] = 0.
+    return image
+
+def zero_center(image):
+    PIXEL_MEAN = 0.25
+    image = image - PIXEL_MEAN
+    return image
+
 def train_xgboost():
+    ids = list()
+    for s in glob.glob(stage1_features + "*"):
+        id = os.path.basename(s)
+        id = re.match(r'([a-f0-9].*).npy' , id).group(1)
+        ids.append(id)
+    ids = pd.DataFrame(ids,  columns=["id"])
+
     df = pd.read_csv(labels)
-    #print(df.head())
-    x = np.array([np.mean(np.load(stage1_features + '/segment_lungs_fill_%s.npy' % str(id)), axis=0) for id in df['id'][:2].tolist()])
-    print(x.shape)
-    # y = df['cancer'].as_matrix()
-    # trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y,
-    #                                                                test_size=0.20)
-    #
-    # clf = xgb.XGBRegressor(max_depth=10,
-    #                        n_estimators=1500,
-    #                        min_child_weight=9,
-    #                        learning_rate=0.05,
-    #                        nthread=8,
-    #                        subsample=0.80,
-    #                        colsample_bytree=0.80,
-    #                        seed=4242)
-    #
-    # clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
-    # return clf
+    df = pd.merge(df, ids, how='inner', on=['id'])
+
+    x = np.array([np.mean(np.load(stage1_features + s + ".npy"), axis=0) for s in df['id'].tolist()])
+    for s in range(0, len(x)):
+        x[s] = normalize(x[s])
+        x[s] = zero_center(x[s])
+
+    y = df['cancer'].as_matrix()
+    trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y,
+                                                                    test_size=0.20)
+
+    clf = xgb.XGBRegressor(max_depth=10,
+                           n_estimators=1500,
+                           min_child_weight=9,
+                           learning_rate=0.05,
+                           nthread=8,
+                           subsample=0.80,
+                           colsample_bytree=0.80,
+                           seed=4242)
+
+    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
+    return clf
 
 
 def make_submit():
     clf = train_xgboost()
 
-    # df = pd.read_csv('/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv')
-    #
-    # x = np.array([np.mean(np.load('/kaggle/dev/data-science-bowl-2017-data/stage1_processed/segmented_lungs_fill%s.npy' % str(id)), axis=0) for id in df['id'].tolist()])
-    #
-    # pred = clf.predict(x)
-    #
-    # df['cancer'] = pred
-    # df.to_csv('subm1.csv', index=False)
-    # print(df.head())
+    ids = list()
+    for s in glob.glob(stage1_features + "*"):
+        id = os.path.basename(s)
+        id = re.match(r'([a-f0-9].*).npy' , id).group(1)
+        ids.append(id)
+    ids = pd.DataFrame(ids,  columns=["id"])
+
+    submission_sample = pd.read_csv(stage1_submission)
+    df = pd.merge(submission_sample, ids, how='inner', on=['id'])
+    x = np.array([np.mean(np.load(stage1_features + s + ".npy"), axis=0) for s in df['id'].tolist()])
+
+    pred = clf.predict(x)
+    df['cancer'] = pred
+
+    #submission prep
+    submission = pd.merge(submission_sample, df, how='left', on=['id'])
+
+    naive = pd.read_csv(naive_submission)
+    for s in submission['id']:
+        print(s)
+
+    timestamp = datetime.datetime.now()
+    filename = 'submissions/submission[' + str(timestamp) + "].csv"
+    submission.to_csv(filename, index=False)
 
 
 if __name__ == '__main__':
@@ -124,6 +164,8 @@ if __name__ == '__main__':
     labels = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     stage1_processed = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
     stage1_features = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_mx/'
+    stage1_submission = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
+    naive_submission = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
 
     #calc_features()
     make_submit()
