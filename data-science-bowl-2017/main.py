@@ -143,6 +143,10 @@ def make_submit():
     df = pd.merge(submission_sample, ids, how='inner', on=['id'])
     x = np.array([np.mean(np.load(stage1_features + s + ".npy"), axis=0) for s in df['id'].tolist()])
 
+    for s in range(0, len(x)):
+        x[s] = normalize(x[s])
+        x[s] = zero_center(x[s])
+
     pred = clf.predict(x)
     df['cancer'] = pred
 
