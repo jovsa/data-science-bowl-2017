@@ -117,17 +117,21 @@ def train_xgboost():
                                                                     test_size=0.20)
 
     clf = xgb.XGBRegressor(max_depth=10,
+                           gamma=0.5,
+                           objective="binary:logistic",
                            n_estimators=1500,
-                           min_child_weight=9,
-                           learning_rate=0.05,
+                           min_child_weight=6,
+                           learning_rate=0.005,
                            nthread=8,
                            subsample=0.80,
                            colsample_bytree=0.80,
-                           seed=4242)
+                           seed=79,
+                           max_delta_step=1,
+                           reg_alpha=0.1,
+                           reg_lambda=0.05)
 
     clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
     return clf
-
 
 def make_submit():
     clf = train_xgboost()
@@ -168,8 +172,6 @@ def make_submit():
     print("Number of predictions: " + str(predecited))
     print("submission file stored at: " + filename)
 
-
-
 if __name__ == '__main__':
     data = '/kaggle/dev/data-science-bowl-2017-data/'
     stage1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
@@ -182,12 +184,6 @@ if __name__ == '__main__':
     #calc_features()
     make_submit()
     print("done")
-
-
-
-
-
-
 
 # Model Building and Traning
 
