@@ -12,7 +12,7 @@ import cv2
 import dicom
 import os
 import xgboost as xgb
-import mxnet as mx
+#import mxnet as mx
 from sklearn import cross_validation
 import glob
 from matplotlib import pyplot as plt
@@ -182,8 +182,8 @@ if __name__ == '__main__':
     naive_submission = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
 
     #calc_features()
-    make_submit()
-    print("done")
+    #make_submit()
+    print("done like dinner")
 
 # Model Building and Traning
 
