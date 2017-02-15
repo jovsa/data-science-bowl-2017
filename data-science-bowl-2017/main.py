@@ -183,7 +183,7 @@ if __name__ == '__main__':
 
     #calc_features()
     #make_submit()
-    print("done like dinner")
+    print("done")
 
 # Model Building and Traning
 
