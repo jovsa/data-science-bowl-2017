@@ -8,6 +8,11 @@ import re
 import sys
 import datetime
 
+
+import matplotlib
+# Force matplotlib to not use any Xwindows backend, so that you can output graphs
+matplotlib.use('Agg')
+
 import cv2
 import dicom
 import os
@@ -16,6 +21,9 @@ import xgboost as xgb
 from sklearn import cross_validation
 import glob
 from matplotlib import pyplot as plt
+import math
+from sklearn.decomposition import PCA
+from time import time
 
 ######################
 def pre_process():
@@ -172,6 +180,48 @@ def make_submit():
     print("Number of predictions: " + str(predecited))
     print("submission file stored at: " + filename)
 
+def file_exists(id):
+    returnVal = True
+    for folder in glob.glob(stage1_processed_pca + 'segment_lungs_fill_pca_*'):
+        filename = re.match(r'segment_lungs_fill_pca_([a-f0-9].*).npy', os.path.basename(folder))
+        file_id = filename.group(1)
+        if(file_id == id):
+            returnVal = False
+    return returnVal
+
+def PCA_transform(patient_data, n_components):
+    n_components = n_components
+    h = int(math.sqrt(patient_data.shape[1]))
+    pca = PCA(n_components=n_components, svd_solver='randomized',
+              whiten=True).fit(patient_data)
+    patient_data_pca = pca.transform(patient_data)
+    eigenvectors = pca.components_.reshape((n_components, h, h))
+    explained_variance_ratio = pca.explained_variance_ratio_
+    return patient_data_pca, eigenvectors, explained_variance_ratio
+
+def process_pca():
+    t0 = time()
+    index = 1
+    pca_n_components = 100
+    for folder in glob.glob(stage1_processed + 'segment_lungs_fill_*')[0:18]:
+        t0 = time()
+        filename = re.match(r'segment_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder))
+        p_id = filename.group(1)
+        if(file_exists(p_id)):
+            segmented_lungs_fill = np.load(stage1_processed + filename.group(0))
+            segmented_lungs_fill = segmented_lungs_fill.reshape(segmented_lungs_fill.shape[0], segmented_lungs_fill.shape[1]* segmented_lungs_fill.shape[2])
+            segmented_lungs_fill_pca, eigenvectors, _ = PCA_transform(segmented_lungs_fill, pca_n_components)
+            np.save(stage1_processed_pca + "segment_lungs_fill_pca_" + p_id, segmented_lungs_fill_pca)
+            # for i in range(0,pca_n_components):
+            #     plt.imshow(eigenvectors[i].reshape(eigenvectors.shape[1], eigenvectors.shape[2]), cmap=plt.cm.gray)
+            #     plt.savefig('temp/foo.pdf')
+            print("id: " + p_id + " -> (" + str(index) + "/1595)" + " done in %0.3fs" % (time() - t0))
+        else:
+            print("already exists, skipping: " + p_id)
+        index += 1
+    print("total PCA done in %0.3fs" % (time() - t0))
+
+
 if __name__ == '__main__':
     data = '/kaggle/dev/data-science-bowl-2017-data/'
     stage1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
@@ -180,7 +230,9 @@ if __name__ == '__main__':
     stage1_features = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_mx/'
     stage1_submission = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     naive_submission = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
+    stage1_processed_pca = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed_pca/'
 
+    process_pca()
     #calc_features()
     #make_submit()
     print("done")
