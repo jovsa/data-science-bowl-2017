@@ -206,7 +206,7 @@ def process_pca():
     t0 = time()
     index = 1
     pca_n_components = 10000 # want to have n_componets == dim[0]
-    for folder in glob.glob(stage1_processed + 'segment_lungs_fill_*')[0:5]:
+    for folder in glob.glob(stage1_processed + 'segment_lungs_fill_*'):
         t0 = time()
         filename = re.match(r'segment_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder))
         p_id = filename.group(1)
