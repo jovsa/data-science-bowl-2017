@@ -182,15 +182,18 @@ def make_submit():
 
 def file_exists(id):
     returnVal = True
-    for folder in glob.glob(stage1_processed_pca + 'segment_lungs_fill_pca_*'):
-        filename = re.match(r'segment_lungs_fill_pca_([a-f0-9].*).npy', os.path.basename(folder))
+    for folder in glob.glob(stage1_processed_pca + 'lungs_pca_*'):
+        filename = re.match(r'lungs_pca_([a-f0-9].*).npy', os.path.basename(folder))
         file_id = filename.group(1)
         if(file_id == id):
             returnVal = False
     return returnVal
 
-def PCA_transform(patient_data, n_components):
-    n_components = n_components
+def PCA_transform(patient_data, components):
+    if(components >= patient_data.shape[0]):
+        n_components = patient_data.shape[0]
+    else:
+        n_components = components
     h = int(math.sqrt(patient_data.shape[1]))
     pca = PCA(n_components=n_components, svd_solver='randomized',
               whiten=True).fit(patient_data)
@@ -202,19 +205,21 @@ def PCA_transform(patient_data, n_components):
 def process_pca():
     t0 = time()
     index = 1
-    pca_n_components = 100
-    for folder in glob.glob(stage1_processed + 'segment_lungs_fill_*'):
+    pca_n_components = 10000 # want to have n_componets == dim[0]
+    for folder in glob.glob(stage1_processed + 'segment_lungs_fill_*')[0:5]:
         t0 = time()
         filename = re.match(r'segment_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder))
         p_id = filename.group(1)
         if(file_exists(p_id)):
-            segmented_lungs_fill = np.load(stage1_processed + filename.group(0))
-            segmented_lungs_fill = segmented_lungs_fill.reshape(segmented_lungs_fill.shape[0], segmented_lungs_fill.shape[1]* segmented_lungs_fill.shape[2])
-            segmented_lungs_fill_pca, eigenvectors, _ = PCA_transform(segmented_lungs_fill, pca_n_components)
-            np.save(stage1_processed_pca + "segment_lungs_fill_pca_" + p_id, segmented_lungs_fill_pca)
-            # for i in range(0,pca_n_components):
-            #     plt.imshow(eigenvectors[i].reshape(eigenvectors.shape[1], eigenvectors.shape[2]), cmap=plt.cm.gray)
-            #     plt.savefig('temp/foo.pdf')
+            segment_lungs_fill_ = np.load(stage1_processed + filename.group(0))
+            segment_lungs_ = np.load(stage1_processed + "segmented_lungs_" + str(filename.group(1)) + ".npy" )
+            lungs = segment_lungs_fill_ -  segment_lungs_
+            lungs = lungs.reshape(lungs.shape[0], lungs.shape[1]* lungs.shape[2])
+            lungs_pca, eigenvectors, _ = PCA_transform(lungs, pca_n_components)
+            np.save(stage1_processed_pca + "lungs_pca_" + p_id, lungs_pca)
+            for i in range(0,10):
+                plt.imshow(eigenvectors[i].reshape(eigenvectors.shape[1], eigenvectors.shape[2]), cmap=plt.cm.gray)
+                plt.savefig('temp2/foo' + str(i) +'.png')
             print("id: " + p_id + " -> (" + str(index) + "/1595)" + " done in %0.3fs" % (time() - t0))
         else:
             print("already exists, skipping: " + p_id)
