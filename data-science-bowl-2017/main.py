@@ -217,9 +217,6 @@ def process_pca():
             lungs = lungs.reshape(lungs.shape[0], lungs.shape[1]* lungs.shape[2])
             lungs_pca, eigenvectors, _ = PCA_transform(lungs, pca_n_components)
             np.save(stage1_processed_pca + "lungs_pca_" + p_id, lungs_pca)
-            for i in range(0,10):
-                plt.imshow(eigenvectors[i].reshape(eigenvectors.shape[1], eigenvectors.shape[2]), cmap=plt.cm.gray)
-                plt.savefig('temp2/foo' + str(i) +'.png')
             print("id: " + p_id + " -> (" + str(index) + "/1595)" + " done in %0.3fs" % (time() - t0))
         else:
             print("already exists, skipping: " + p_id)
