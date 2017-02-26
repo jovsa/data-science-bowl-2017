@@ -1,6 +1,10 @@
 # main
 
 import helpers.helpers as helpers
+import helpers.cache as cache
+import helpers.download as download
+import helpers.inception as inception
+
 
 import numpy as np
 import pandas as pd
@@ -24,6 +28,8 @@ from matplotlib import pyplot as plt
 import math
 from sklearn.decomposition import PCA
 from time import time
+
+import tensorflow as tf
 
 ######################
 def pre_process():
@@ -223,6 +229,9 @@ def process_pca():
         index += 1
     print("total PCA done in %0.3fs" % (time() - t0))
 
+def calc_features_inception():
+    inception.maybe_download()
+
 
 if __name__ == '__main__':
     data = '/kaggle/dev/data-science-bowl-2017-data/'
@@ -234,8 +243,9 @@ if __name__ == '__main__':
     naive_submission = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
     stage1_processed_pca = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed_pca/'
 
-    process_pca()
+    #process_pca()
     #calc_features()
+    calc_features_inception()
     #make_submit()
     print("done")
 

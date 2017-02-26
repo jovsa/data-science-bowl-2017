@@ -12,3 +12,6 @@ def folder_explorer(folder):
     for d in os.listdir(folder):
         folder_info[d] = int(len(os.listdir(folder + d)))
     return folder_info
+
+def temp():
+    print("You are now in temp")
