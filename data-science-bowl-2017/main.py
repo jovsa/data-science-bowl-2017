@@ -1,6 +1,11 @@
 # main
 
 import helpers.helpers as helpers
+import helpers.cache as cache
+import helpers.download as download
+import helpers.inception as inception
+from helpers.inception import transfer_values_cache
+
 
 import numpy as np
 import pandas as pd
@@ -24,6 +29,8 @@ from matplotlib import pyplot as plt
 import math
 from sklearn.decomposition import PCA
 from time import time
+
+import tensorflow as tf
 
 ######################
 def pre_process():
@@ -91,12 +98,18 @@ def calc_features():
         np.save(stage1_features + p_id, feats)
         count = count + 1
 
-def normalize(image):
+def normalize_scans(image):
     MIN_BOUND = -1000.0
     MAX_BOUND = 400.0
     image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
     image[image>1] = 1.
     image[image<0] = 0.
+    return image
+
+def normalize_general(image):
+    MIN_BOUND = np.min(image)
+    MAX_BOUND = np.max(image)
+    image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
     return image
 
 def zero_center(image):
@@ -224,6 +237,56 @@ def process_pca():
     print("total PCA done in %0.3fs" % (time() - t0))
 
 
+# Helper function for scans to
+def img_to_rgb(im):
+    w, h = im.shape
+    ret = np.empty((w, h, 3), dtype=np.uint8)
+    ret[:, :, 0] = im
+    ret[:, :, 1] = im
+    ret[:, :, 2] = im
+    return ret
+
+# Convert grayscale scans to rgb
+# (num_scans, w, h) -> (num_scans, w, h, 3)
+def scans_to_rgb(scans):
+    num_scans, w, h = scans.shape
+    reshaped_scans = np.empty((num_scans, w, h, 3), dtype=np.uint8)
+    for scn in enumerate(scans):
+        reshaped_scans[scn[0]] = img_to_rgb(scn[1])
+    return reshaped_scans
+
+
+def calc_features_inception():
+    inception.maybe_download()
+    download.maybe_download_and_extract(cifar10_url, cifar_data)
+    model = inception.Inception()
+    count = 0
+
+    for folder in glob.glob(stage1_processed + 'scan_segmented_lungs_fill_*'):
+        p_id = re.match(r'scan_segmented_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder))
+        print('Processing patient ' + str(count) + ' id: ' + p_id.group(1))
+        data = np.load(stage1_processed + p_id.group(0))
+        # print("original: " + str(data.shape))
+        data = scans_to_rgb(data)
+        data = normalize_scans(data)
+        data = zero_center(data)
+        data = normalize_general(data)
+        # print("after: " + str(data.shape))
+
+
+
+        # Scale images because Inception needs pixels to be between 0 and 255,
+        data = data * 255.0
+        filepath_cache = cifar_data + "cache/inception_cifar10_" + p_id.group(1) + ".pkl"
+        # print(np.min(data))
+        # print(np.max(data))
+        # print("after scalling: " + str(data.shape))
+        transfer_values_train = transfer_values_cache(cache_path=filepath_cache, images=data, model=model)
+        count = count + 1
+
+
+
+
 if __name__ == '__main__':
     data = '/kaggle/dev/data-science-bowl-2017-data/'
     stage1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
@@ -234,8 +297,13 @@ if __name__ == '__main__':
     naive_submission = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
     stage1_processed_pca = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed_pca/'
 
-    process_pca()
+    cifar10_url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+    cifar_data = "/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/"
+
+
+    #process_pca()
     #calc_features()
+    calc_features_inception()
     #make_submit()
     print("done")
 
