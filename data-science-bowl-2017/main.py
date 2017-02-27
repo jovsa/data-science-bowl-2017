@@ -236,11 +236,23 @@ def process_pca():
         index += 1
     print("total PCA done in %0.3fs" % (time() - t0))
 
+
+# Helper function for scans to
+def img_to_rgb(im):
+    w, h = im.shape
+    ret = np.empty((w, h, 3), dtype=np.uint8)
+    ret[:, :, 0] = im
+    ret[:, :, 1] = im
+    ret[:, :, 2] = im
+    return ret
+
+# Convert grayscale scans to rgb
+# (num_scans, w, h) -> (num_scans, w, h, 3)
 def scans_to_rgb(scans):
     num_scans, w, h = scans.shape
     reshaped_scans = np.empty((num_scans, w, h, 3), dtype=np.uint8)
     for scn in enumerate(scans):
-        reshaped_scans[scn[0]] = to_rgb(scn[1])
+        reshaped_scans[scn[0]] = img_to_rgb(scn[1])
     return reshaped_scans
 
 
@@ -250,32 +262,28 @@ def calc_features_inception():
     model = inception.Inception()
     count = 0
 
-    for folder in glob.glob(stage1_processed + 'scan_segmented_lungs_fill_*')[0:5]:
+    for folder in glob.glob(stage1_processed + 'scan_segmented_lungs_fill_*'):
         p_id = re.match(r'scan_segmented_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder))
         print('Processing patient ' + str(count) + ' id: ' + p_id.group(1))
         data = np.load(stage1_processed + p_id.group(0))
-        #data = get_data_id(stage1_processed + p_id.group(0))
-        print("original: " + str(data.shape))
-        # data = normalize_scans(data)
-        # data = zero_center(data)
-        # data = normalize_general(data)
+        # print("original: " + str(data.shape))
         data = scans_to_rgb(data)
-        print("after: " + str(data.shape))
+        data = normalize_scans(data)
+        data = zero_center(data)
+        data = normalize_general(data)
+        # print("after: " + str(data.shape))
 
 
 
         # Scale images because Inception needs pixels to be between 0 and 255,
         data = data * 255.0
         filepath_cache = cifar_data + "cache/inception_cifar10_" + p_id.group(1) + ".pkl"
-        #data = data[np.newaxis,:]
         # print(np.min(data))
         # print(np.max(data))
-        print(data.shape)
-        #transfer_values_train = transfer_values_cache(cache_path=filepath_cache, images=data, model=model)
+        # print("after scalling: " + str(data.shape))
+        transfer_values_train = transfer_values_cache(cache_path=filepath_cache, images=data, model=model)
         count = count + 1
 
-    #x = np.load("/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/inception_cifar10_7852cb521d7029ca08133476054e7bec.pkl")
-    #print(x.shape)
 
 
 
