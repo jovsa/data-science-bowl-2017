@@ -236,6 +236,14 @@ def process_pca():
         index += 1
     print("total PCA done in %0.3fs" % (time() - t0))
 
+def scans_to_rgb(scans):
+    num_scans, w, h = scans.shape
+    reshaped_scans = np.empty((num_scans, w, h, 3), dtype=np.uint8)
+    for scn in enumerate(scans):
+        reshaped_scans[scn[0]] = to_rgb(scn[1])
+    return reshaped_scans
+
+
 def calc_features_inception():
     inception.maybe_download()
     download.maybe_download_and_extract(cifar10_url, cifar_data)
@@ -247,10 +255,14 @@ def calc_features_inception():
         print('Processing patient ' + str(count) + ' id: ' + p_id.group(1))
         data = np.load(stage1_processed + p_id.group(0))
         #data = get_data_id(stage1_processed + p_id.group(0))
+        print("original: " + str(data.shape))
         # data = normalize_scans(data)
         # data = zero_center(data)
         # data = normalize_general(data)
-        print(data.shape)
+        data = scans_to_rgb(data)
+        print("after: " + str(data.shape))
+
+
 
         # Scale images because Inception needs pixels to be between 0 and 255,
         data = data * 255.0
