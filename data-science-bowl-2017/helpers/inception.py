@@ -591,7 +591,7 @@ def transfer_values_cache(cache_path, model, images=None, image_paths=None):
         return process_images(fn=model.transfer_values, images=images, image_paths=image_paths)
 
     # Read the transfer-values from a cache-file, or calculate them if the file does not exist.
-    transfer_values = cache(cache_path=cache_path, fn=fn)
+    transfer_values = cache.cache(cache_path=cache_path, fn=fn)
 
     return transfer_values
 

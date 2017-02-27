@@ -4,6 +4,7 @@ import helpers.helpers as helpers
 import helpers.cache as cache
 import helpers.download as download
 import helpers.inception as inception
+from helpers.inception import transfer_values_cache
 
 
 import numpy as np
@@ -97,12 +98,18 @@ def calc_features():
         np.save(stage1_features + p_id, feats)
         count = count + 1
 
-def normalize(image):
+def normalize_scans(image):
     MIN_BOUND = -1000.0
     MAX_BOUND = 400.0
     image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
     image[image>1] = 1.
     image[image<0] = 0.
+    return image
+
+def normalize_general(image):
+    MIN_BOUND = np.min(image)
+    MAX_BOUND = np.max(image)
+    image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
     return image
 
 def zero_center(image):
@@ -231,6 +238,33 @@ def process_pca():
 
 def calc_features_inception():
     inception.maybe_download()
+    download.maybe_download_and_extract(cifar10_url, cifar_data)
+    model = inception.Inception()
+    count = 0
+
+    for folder in glob.glob(stage1_processed + 'scan_segmented_lungs_fill_*')[0:5]:
+        p_id = re.match(r'scan_segmented_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder))
+        print('Processing patient ' + str(count) + ' id: ' + p_id.group(1))
+        data = np.load(stage1_processed + p_id.group(0))
+        #data = get_data_id(stage1_processed + p_id.group(0))
+        # data = normalize_scans(data)
+        # data = zero_center(data)
+        # data = normalize_general(data)
+        print(data.shape)
+
+        # Scale images because Inception needs pixels to be between 0 and 255,
+        data = data * 255.0
+        filepath_cache = cifar_data + "cache/inception_cifar10_" + p_id.group(1) + ".pkl"
+        #data = data[np.newaxis,:]
+        # print(np.min(data))
+        # print(np.max(data))
+        print(data.shape)
+        #transfer_values_train = transfer_values_cache(cache_path=filepath_cache, images=data, model=model)
+        count = count + 1
+
+    #x = np.load("/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/inception_cifar10_7852cb521d7029ca08133476054e7bec.pkl")
+    #print(x.shape)
+
 
 
 if __name__ == '__main__':
@@ -242,6 +276,10 @@ if __name__ == '__main__':
     stage1_submission = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     naive_submission = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
     stage1_processed_pca = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed_pca/'
+
+    cifar10_url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+    cifar_data = "/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/"
+
 
     #process_pca()
     #calc_features()
