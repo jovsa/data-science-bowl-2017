@@ -153,8 +153,6 @@ def train_xgboost():
     return clf
 
 def make_submit():
-    t0 = time()
-    print("in make_submit")
     clf = train_xgboost()
 
     ids = list()
@@ -178,7 +176,7 @@ def make_submit():
 
     # Outputting submission file
     timestamp = datetime.datetime.now().isoformat()
-    filename = 'submissions/submission-' + str(timestamp) + ".csv"
+    filename = submissions + 'submission-' + str(timestamp) + ".csv"
     submission.to_csv(filename, index=False)
 
     # Submission file analysis
@@ -188,7 +186,6 @@ def make_submit():
     print("Total number of patients: " + str(patient_count))
     print("Number of predictions: " + str(predecited))
     print("submission file stored at: " + filename)
-    print("total computation done in %0.3fs" % (time() - t0))
 
 def file_exists(id):
     returnVal = True
@@ -294,6 +291,7 @@ if __name__ == '__main__':
     naive_submission = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
     stage1_processed_pca = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed_pca/'
     stage1_features_inception = '/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/'
+    submissions = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
 
     cifar10_url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
     cifar_data = "/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/"
