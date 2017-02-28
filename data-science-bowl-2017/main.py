@@ -119,19 +119,17 @@ def zero_center(image):
 
 def train_xgboost():
     ids = list()
-    for s in glob.glob(stage1_features + "*"):
+    for s in glob.glob(stage1_features_inception + "*"):
         id = os.path.basename(s)
-        id = re.match(r'([a-f0-9].*).npy' , id).group(1)
+        id = re.match(r'inception_cifar10_([a-f0-9].*).pkl' , id).group(1)
         ids.append(id)
     ids = pd.DataFrame(ids,  columns=["id"])
 
     df = pd.read_csv(labels)
     df = pd.merge(df, ids, how='inner', on=['id'])
 
-    x = np.array([np.mean(np.load(stage1_features + s + ".npy"), axis=0) for s in df['id'].tolist()])
-    for s in range(0, len(x)):
-        x[s] = normalize(x[s])
-        x[s] = zero_center(x[s])
+
+    x = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
 
     y = df['cancer'].as_matrix()
     trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y,
@@ -155,22 +153,20 @@ def train_xgboost():
     return clf
 
 def make_submit():
+    t0 = time()
+    print("in make_submit")
     clf = train_xgboost()
 
     ids = list()
-    for s in glob.glob(stage1_features + "*"):
+    for s in glob.glob(stage1_features_inception + "*"):
         id = os.path.basename(s)
-        id = re.match(r'([a-f0-9].*).npy' , id).group(1)
+        id = re.match(r'inception_cifar10_([a-f0-9].*).pkl' , id).group(1)
         ids.append(id)
     ids = pd.DataFrame(ids,  columns=["id"])
 
     submission_sample = pd.read_csv(stage1_submission)
     df = pd.merge(submission_sample, ids, how='inner', on=['id'])
-    x = np.array([np.mean(np.load(stage1_features + s + ".npy"), axis=0) for s in df['id'].tolist()])
-
-    for s in range(0, len(x)):
-        x[s] = normalize(x[s])
-        x[s] = zero_center(x[s])
+    x = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
 
     pred = clf.predict(x)
     df['cancer'] = pred
@@ -192,6 +188,7 @@ def make_submit():
     print("Total number of patients: " + str(patient_count))
     print("Number of predictions: " + str(predecited))
     print("submission file stored at: " + filename)
+    print("total computation done in %0.3fs" % (time() - t0))
 
 def file_exists(id):
     returnVal = True
@@ -292,10 +289,11 @@ if __name__ == '__main__':
     stage1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
     labels = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     stage1_processed = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
-    stage1_features = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_mx/'
+    stage1_features_resnet = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_mx/'
     stage1_submission = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     naive_submission = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
     stage1_processed_pca = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed_pca/'
+    stage1_features_inception = '/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/'
 
     cifar10_url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
     cifar_data = "/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/"
@@ -303,8 +301,8 @@ if __name__ == '__main__':
 
     #process_pca()
     #calc_features()
-    calc_features_inception()
-    #make_submit()
+    #calc_features_inception()
+    make_submit()
     print("done")
 
 # Model Building and Traning
