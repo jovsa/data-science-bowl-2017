@@ -147,7 +147,7 @@ def train_xgboost():
                            seed=79,
                            max_delta_step=1,
                            reg_alpha=0.1,
-                           reg_lambda=0.05)
+                           reg_lambda=0.5)
 
     clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
     return clf
