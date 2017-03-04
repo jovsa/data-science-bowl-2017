@@ -28,8 +28,8 @@ import glob
 from matplotlib import pyplot as plt
 import math
 from sklearn.decomposition import PCA
-from time import time
-
+import time
+from datetime import timedelta
 import tensorflow as tf
 import prettytensor as pt
 
@@ -271,7 +271,6 @@ def train_nn():
     def predict_cls(transfer_values, labels, cls_true):
         # Number of images.
         num_images = len(transfer_values)
-        print('num_images: ' + str(num_images))
 
         # Allocate an array for the predicted classes which
         # will be calculated in batches and filled into this array.
@@ -293,7 +292,6 @@ def train_nn():
             feed_dict = {x: transfer_values[i:j],
                          y_true: labels[i:j]}
 
-            print(feed_dict)
             # Calculate the predicted class using TensorFlow.
             cls_pred[i:j] = session.run(y_pred_cls, feed_dict=feed_dict)
 
@@ -351,7 +349,6 @@ def train_nn():
 
 
 
-
     print('in train_nn')
 
     ids = list()
@@ -365,7 +362,7 @@ def train_nn():
     df = pd.merge(df, ids, how='inner', on=['id'])
 
 
-    x = np.array([np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl") for s in df['id'].tolist()])
+    x = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
 
     y = df['cancer'].as_matrix()
     trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y,
@@ -378,12 +375,12 @@ def train_nn():
     # global cls_train
     # global cls_test
 
-    transfer_values_test = val_x.flatten()
-    transfer_values_train = trn_x.flatten()
-    labels_test = val_y.reshape(-1,1)
-    labels_train = trn_y.reshape(-1,1)
-    cls_train = (np.arange(num_classes) == trn_y[:, None])+0
-    cls_test = (np.arange(num_classes) == val_y[:, None])+0
+    transfer_values_test = val_x
+    transfer_values_train = trn_x
+    cls_test = val_y
+    cls_train = trn_y
+    labels_test = (np.arange(num_classes) == val_y[:, None])+0
+    labels_train = (np.arange(num_classes) == trn_y[:, None])+0
 
     print("transfer_values_test : " + str(transfer_values_test.shape))
     print("transfer_values_train : " + str(transfer_values_train.shape))
@@ -420,6 +417,70 @@ def train_nn():
 
     print_test_accuracy(show_example_errors=False,
                     show_confusion_matrix=False)
+    optimize(num_iterations=10000)
+
+    print('new score:')
+    print_test_accuracy(show_example_errors=False,
+                    show_confusion_matrix=False)
+
+
+
+    # ## Submission
+    # ids = list()
+    # for s in glob.glob(stage1_features_inception + "*"):
+    #     id = os.path.basename(s)
+    #     id = re.match(r'inception_cifar10_([a-f0-9].*).pkl' , id).group(1)
+    #     ids.append(id)
+    # ids = pd.DataFrame(ids,  columns=["id"])
+
+    # submission_sample = pd.read_csv(stage1_submission)
+    # df = pd.merge(submission_sample, ids, how='inner', on=['id'])
+    # x_test = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
+
+    # feed_dict_test = {}
+    # for i in range(0, len(x_test)):
+    #     feed_dict_test = {x:[x_test[i]]}
+    # num_images = len(x_test)
+    # cls_pred_test = np.zeros(shape=len(x_test), dtype=np.int)
+    # y_labels = np.zeros(shape=len(x_test), dtype=np.int)
+    # for i in range(0, len(x_test)):
+    #     j = min(i + batch_size, num_images)
+    #     feed_dict = {x: x_test[i:j],
+    #                      y_true: y_labels[i:j] }
+    #     cls_pred_test[i:j] = session.run(y_pred_cls, feed_dict=feed_dict)
+
+
+
+    # print(cls_pred_test)
+
+
+
+
+    # pred = clf.predict(x)
+    # df['cancer'] = pred
+
+    # #Submission preparation
+    # submission = pd.merge(submission_sample, df, how='left', on=['id'])
+    # submission = submission.iloc[:,(0,2)]
+    # submission = submission.rename(index=str, columns={"cancer_y": "cancer"})
+
+    # # Outputting submission file
+    # timestamp = datetime.datetime.now().isoformat()
+    # filename = submissions + 'submission-' + str(timestamp) + ".csv"
+    # submission.to_csv(filename, index=False)
+
+    # # Submission file analysis
+    # print("----submission file analysis----")
+    # patient_count = submission['id'].count()
+    # predecited = submission['cancer'].count()
+    # print("Total number of patients: " + str(patient_count))
+    # print("Number of predictions: " + str(predecited))
+    # print("submission file stored at: " + filename)
+
+
+    #### submission
+
+
 
     return
 
@@ -584,6 +645,7 @@ if __name__ == '__main__':
     #process_pca()
     #calc_features()
     #calc_features_inception()
+    #convnet_3D()
     make_submit()
     print("done")
 
