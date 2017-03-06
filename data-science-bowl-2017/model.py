@@ -89,13 +89,14 @@ def train_nn():
         # calculate the predicted classes and whether they are correct.
         prob_pred = predict_prob_test()
         p = np.maximum(np.minimum(prob_pred, 1-10e-15), 10e-15)
-        test_labels_f = np.transpose(test_labels + 0.0)
-        temp = np.matmul(test_labels_f, np.log(p)) + np.matmul((1 - test_labels_f), np.log(1-p))
+        l = np.transpose(test_labels + 0.0)
+        n = test_labels.shape[0]
+        temp = np.matmul(l, np.log(p)) + np.matmul((1 - l), np.log(1 - p))
 
-        # Divide by 4 (magic number)
-        validation_log_loss = -1.0 * np.sum(temp)/(4 * test_labels.shape[0])
+        # Divide by 2 (magic number)
+        validation_log_loss = -1.0 * (temp[0,0] + temp[1,1])/(2 * n)
 
-        print('Validation log loss: ' + str(validation_log_loss))
+        print('Validation log loss: {0:.5}'.format(validation_log_loss))
 
     num_classes = 2
     batch_size = 10
