@@ -91,7 +91,9 @@ def train_nn():
         p = np.maximum(np.minimum(prob_pred, 1-10e-15), 10e-15)
         test_labels_f = np.transpose(test_labels + 0.0)
         temp = np.matmul(test_labels_f, np.log(p)) + np.matmul((1 - test_labels_f), np.log(1-p))
-        validation_log_loss = -1.0 * np.sum(temp)/test_labels.shape[0]
+
+        # Divide by 4 (magic number)
+        validation_log_loss = -1.0 * np.sum(temp)/(4 * test_labels.shape[0])
 
         print('Validation log loss: ' + str(validation_log_loss))
 
