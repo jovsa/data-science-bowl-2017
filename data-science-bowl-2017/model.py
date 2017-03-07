@@ -74,9 +74,8 @@ def train_nn():
                 feed_dict = {x: transfer_values[i:j]}
 
             # Calculate the predicted class using TensorFlow.
-            y_temp = sess.run(y, feed_dict=feed_dict)
-            # print(np.argmax(y_temp, axis=1))
-            prob_pred[i:j] = y_temp
+            y_calc = sess.run(y, feed_dict=feed_dict)
+            prob_pred[i:j] = y_calc
 
             # Set the start-index for the next batch to the
             # end-index of the current batch.
@@ -103,7 +102,6 @@ def train_nn():
         df = pd.merge(submission_sample, ids, how='inner', on=['id'])
         x_test = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
 
-        print(x_test.shape)
         for i in range(0, len(x_test)):
             pred = predict_prob(transfer_values = x_test[i].reshape(1,-1))
             df['cancer'][i] = pred[0,1]
@@ -171,26 +169,24 @@ def train_nn():
         y = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
         y_labels = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_labels')
 
-        # y_class = tf.argmax(y_, dimension=1)
-
         W = tf.Variable(tf.zeros([transfer_len, num_classes]))
         b = tf.Variable(tf.zeros([num_classes]))
 
-    with tf.Session(graph=graph) as sess:
-        sess.run(tf.global_variables_initializer())
         logits = tf.matmul(x, W)+ b
         y = tf.nn.softmax(logits)
 
-        print_validation_log_loss()
-        for i in range(200):
-            x_batch, y_batch = get_batch(train_x, train_labels, batch_size)
-            log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
-            train_step = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
-            _, loss_val = sess.run([train_step, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
-            print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
+        log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
 
+    with tf.Session(graph=graph) as sess:
+        sess.run(tf.global_variables_initializer())
+        #print_validation_log_loss()
+        for i in range(100):
+            x_batch, y_batch = get_batch(train_x, train_labels, batch_size)
+            _, loss_val = sess.run([optimizer, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
+            print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
         print_validation_log_loss()
-        submission()
+        # submission()
 
 def make_submission():
     clf = train_nn()
