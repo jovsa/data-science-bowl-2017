@@ -26,6 +26,18 @@ from datetime import timedelta
 import tensorflow as tf
 import prettytensor as pt
 
+def variable_summaries(var):
+    """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+    with tf.name_scope('summaries'):
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar('mean', mean)
+        with tf.name_scope('stddev'):
+            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+        tf.summary.scalar('stddev', stddev)
+        tf.summary.scalar('max', tf.reduce_max(var))
+        tf.summary.scalar('min', tf.reduce_min(var))
+        tf.summary.histogram('histogram', var)
+
 def train_nn():
     def get_batch(x, y, batch_size):
         # Number of images (transfer-values) in the training-set.
@@ -165,18 +177,24 @@ def train_nn():
     with graph.as_default():
         model = inception.Inception()
         transfer_len = model.transfer_len
-        x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
-        y = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
-        y_labels = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_labels')
+        
+        with tf.name_scope('layer1'):
+        
+            x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
+            y = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
+            y_labels = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_labels')
 
-        W = tf.Variable(tf.zeros([transfer_len, num_classes]))
-        b = tf.Variable(tf.zeros([num_classes]))
+            with tf.name_scope('weights'):
+                W = tf.Variable(tf.zeros([transfer_len, num_classes]))
+                variable_summaries(W)            
+            with tf.name_scope('biases'):
+                b = tf.Variable(tf.zeros([num_classes]))
+                variable_summaries(b)
+            logits = tf.matmul(x, W)+ b
+            y = tf.nn.softmax(logits)
 
-        logits = tf.matmul(x, W)+ b
-        y = tf.nn.softmax(logits)
-
-        log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
+            log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
 
     with tf.Session(graph=graph) as sess:
         sess.run(tf.global_variables_initializer())
