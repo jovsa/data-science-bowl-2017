@@ -186,7 +186,7 @@ def train_nn():
             _, loss_val = sess.run([optimizer, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
             print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
         print_validation_log_loss()
-        # submission()
+        submission()
 
 def make_submission():
     clf = train_nn()
