@@ -105,7 +105,7 @@ def train_nn():
         for i in range(0, len(x_test)):
             pred = predict_prob(transfer_values = x_test[i].reshape(1,-1))
             df['cancer'][i] = pred[0,1]
-            print(pred, " ; shape: ", pred.shape, " ; p_cancer: ", pred[0,1], " ; type:", type(pred), ' ; id: ', df['id'][i])
+            # print(pred, " ; shape: ", pred.shape, " ; p_cancer: ", pred[0,1], " ; type:", type(pred), ' ; id: ', df['id'][i])
 
         #Submission preparation
         submission = pd.merge(submission_sample, df, how='left', on=['id'])
