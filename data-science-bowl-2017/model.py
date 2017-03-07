@@ -69,7 +69,7 @@ def train_nn():
             # between index i and j.
             if kwargs:
                 feed_dict = {x: transfer_values[i:j],
-                             y_: labels[i:j]}
+                             y_labels: labels[i:j]}
             else:
                 feed_dict = {x: transfer_values[i:j]}
 
@@ -107,7 +107,7 @@ def train_nn():
         for i in range(0, len(x_test)):
             pred = predict_prob(transfer_values = x_test[i].reshape(1,-1))
             df['cancer'][i] = pred[0,1]
-            # print(pred, " ; shape: ", pred.shape, " ; p_cancer: ", pred[0,1], " ; type:", type(pred), ' ; id: ', df['id'][i])
+            print(pred, " ; shape: ", pred.shape, " ; p_cancer: ", pred[0,1], " ; type:", type(pred), ' ; id: ', df['id'][i])
 
         #Submission preparation
         submission = pd.merge(submission_sample, df, how='left', on=['id'])
@@ -163,28 +163,30 @@ def train_nn():
     test_labels = (np.arange(num_classes) == validation_y[:, None])+0
     train_labels = (np.arange(num_classes) == train_y[:, None])+0
 
-    model = inception.Inception()
-    transfer_len = model.transfer_len
+    graph = tf.Graph()
+    with graph.as_default():
+        model = inception.Inception()
+        transfer_len = model.transfer_len
+        x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
+        y = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
+        y_labels = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_labels')
 
-    x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
-    y_ = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
-    # y_class = tf.argmax(y_, dimension=1)
+        # y_class = tf.argmax(y_, dimension=1)
 
-    W = tf.Variable(tf.zeros([transfer_len, num_classes]))
-    b = tf.Variable(tf.zeros([num_classes]))
+        W = tf.Variable(tf.zeros([transfer_len, num_classes]))
+        b = tf.Variable(tf.zeros([num_classes]))
 
-    with tf.Session() as sess:
-
+    with tf.Session(graph=graph) as sess:
         sess.run(tf.global_variables_initializer())
         logits = tf.matmul(x, W)+ b
         y = tf.nn.softmax(logits)
-        log_loss = tf.losses.log_loss(y_, y, epsilon=10e-15)
-        train_step = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
 
         print_validation_log_loss()
-        for i in range(1000):
-            batch = get_batch(train_x, train_labels, batch_size)
-            _, loss_val = sess.run([train_step, log_loss], feed_dict={x: batch[0], y_: batch[1]})
+        for i in range(200):
+            x_batch, y_batch = get_batch(train_x, train_labels, batch_size)
+            log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
+            train_step = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
+            _, loss_val = sess.run([train_step, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
             print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
 
         print_validation_log_loss()
