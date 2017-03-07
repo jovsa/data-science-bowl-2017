@@ -92,8 +92,6 @@ def train_nn():
                            labels = test_labels)
 
     def submission():
-        # return predict_prob(transfer_values = validation_x)
-        print(validation_x.shape)
         ids = list()
         for s in glob.glob(stage1_features_inception + "*"):
             id = os.path.basename(s)
@@ -105,10 +103,11 @@ def train_nn():
         df = pd.merge(submission_sample, ids, how='inner', on=['id'])
         x_test = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
 
+        print(x_test.shape)
         for i in range(0, len(x_test)):
             pred = predict_prob(transfer_values = x_test[i].reshape(1,-1))
-            df['cancer'][i] = np.amax(pred)
-            print(pred, " ;shape: ", pred.shape, " ;argmax: ", np.amax(pred), " ;type:", type(pred), ' ;id: ', df['id'][i])
+            df['cancer'][i] = pred[0,1]
+            # print(pred, " ; shape: ", pred.shape, " ; p_cancer: ", pred[0,1], " ; type:", type(pred), ' ; id: ', df['id'][i])
 
         #Submission preparation
         submission = pd.merge(submission_sample, df, how='left', on=['id'])
