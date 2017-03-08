@@ -85,11 +85,13 @@ def train_nn():
                 feed_dict = {x: transfer_values[i:j],
                              y_labels: labels[i:j]}
             else:
-                feed_dict = {x: transfer_values[i:j]}
+                feed_dict = {x: transfer_values[i:j],
+                             y_labels: np.zeros([j-i, num_classes], dtype=np.float32)}
 
             # Calculate the predicted class using TensorFlow.
-            y_calc = sess.run(y, feed_dict=feed_dict)
+            y_calc, step_summary = sess.run([y, merged], feed_dict=feed_dict)
             prob_pred[i:j] = y_calc
+            test_writer.add_summary(step_summary, i)
 
             # Set the start-index for the next batch to the
             # end-index of the current batch.
@@ -132,15 +134,14 @@ def train_nn():
         submission.to_csv(filename, index=False)
 
         # Submission file analysis
-        print("----submission file analysis----")
+        print("\n---- Submission file analysis ----")
         patient_count = submission['id'].count()
         predecited = submission['cancer'].count()
         print("Total number of patients: " + str(patient_count))
         print("Number of predictions: " + str(predecited))
-        print("submission file stored at: " + filename)
+        print("\nSubmission file stored at: " + filename)
 
-    def print_validation_log_loss():
-
+    def calc_validation_log_loss():
         # For all the images in the test-set,
         # calculate the predicted classes and whether they are correct.
         prob_pred = predict_prob_test()
@@ -152,7 +153,7 @@ def train_nn():
         # Divide by 2 (magic number)
         validation_log_loss = -1.0 * (temp[0,0] + temp[1,1])/(2 * n)
 
-        print('Validation log loss: {0:.5}'.format(validation_log_loss))
+        return validation_log_loss
 
     num_classes = 2
     batch_size = 10
@@ -179,33 +180,51 @@ def train_nn():
     with graph.as_default():
         model = inception.Inception()
         transfer_len = model.transfer_len
-        
+
         with tf.name_scope('layer1'):
-        
+
             x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
             y = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
             y_labels = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_labels')
 
             with tf.name_scope('weights'):
                 W = tf.Variable(tf.zeros([transfer_len, num_classes]))
-                variable_summaries(W)            
+                variable_summaries(W)
             with tf.name_scope('biases'):
                 b = tf.Variable(tf.zeros([num_classes]))
                 variable_summaries(b)
-            logits = tf.matmul(x, W)+ b
+            with tf.name_scope('Wx_plus_b'):
+                logits = tf.matmul(x, W) + b
+                tf.summary.histogram('Wx_plus_b', logits)
+
             y = tf.nn.softmax(logits)
+            tf.summary.histogram('y', y)
 
-            log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
+            with tf.name_scope('log_loss'):
+                log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
+                tf.summary.scalar('log_loss', log_loss)
 
+            with tf.name_scope('train'):
+                optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
+
+        merged = tf.summary.merge_all()
+
+    timestamp = str(int(time.time()))
     with tf.Session(graph=graph) as sess:
+        train_writer = tf.summary.FileWriter(tensorboard_summaries + '/train-' + timestamp, sess.graph)
+        test_writer = tf.summary.FileWriter(tensorboard_summaries + '/test-' + timestamp)
         sess.run(tf.global_variables_initializer())
-        #print_validation_log_loss()
-        for i in range(100):
+
+        print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
+        for i in range(num_iterations):
             x_batch, y_batch = get_batch(train_x, train_labels, batch_size)
-            _, loss_val = sess.run([optimizer, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
-            print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
-        print_validation_log_loss()
+            _, step_summary, loss_val = sess.run([optimizer, merged, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
+            train_writer.add_summary(step_summary, i)
+            # print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
+
+        print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
+
+        print('\nTensorboard runs: train-{} test-{}'. format(timestamp, timestamp))
         submission()
 
 def make_submission():
@@ -222,10 +241,12 @@ if __name__ == '__main__':
     stage1_processed_pca = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed_pca/'
     stage1_features_inception = '/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/'
     submissions = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
+    tensorboard_summaries = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries'
 
     ## nn hyper-params
     num_classes = 2
     train_batch_size = 64
+    num_iterations = 6000
 
     make_submission()
     print("done")
