@@ -25,6 +25,9 @@ from datetime import timedelta
 import tensorflow as tf
 import prettytensor as pt
 
+# Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
+pd.options.mode.chained_assignment = None
+
 def variable_summaries(var):
     """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
     with tf.name_scope('summaries'):
