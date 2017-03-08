@@ -15,8 +15,7 @@ matplotlib.use('Agg')
 import cv2
 import dicom
 import os
-#import mxnet as mx
-from sklearn import cross_validation
+from sklearn import model_selection
 import glob
 from matplotlib import pyplot as plt
 import math
@@ -167,7 +166,7 @@ def train_nn():
     X = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
     Y = df['cancer'].as_matrix()
 
-    train_x, validation_x, train_y, validation_y = cross_validation.train_test_split(X, Y, random_state=42, stratify=Y,
+    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y,
                                                                     test_size=0.20)
 
     test_labels = (np.arange(num_classes) == validation_y[:, None])+0
