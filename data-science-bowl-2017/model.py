@@ -163,6 +163,8 @@ def train_nn():
 
     graph = tf.Graph()
     with graph.as_default():
+        # for i in range(FLAGS.num_gpus):
+        #     with tf.device('/gpu:%d' % i):
         model = inception.Inception()
         transfer_len = model.transfer_len
         x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
@@ -171,27 +173,34 @@ def train_nn():
 
         W = tf.Variable(tf.zeros([transfer_len, num_classes]))
         b = tf.Variable(tf.zeros([num_classes]))
-
         logits = tf.matmul(x, W)+ b
         y = tf.nn.softmax(logits)
 
         log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
 
-    with tf.Session(graph=graph) as sess:
+    # Setting up config
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.log_device_placement=FLAGS.log_device_placement
+    config.allow_soft_placement=FLAGS.allow_soft_placement
+    with tf.Session(graph=graph, config=config) as sess:
         sess.run(tf.global_variables_initializer())
-        #print_validation_log_loss()
-        for i in range(100):
+        print_validation_log_loss() # validation log loss BEFORE traning
+        for i in range(FLAGS.max_steps):
             x_batch, y_batch = get_batch(train_x, train_labels, batch_size)
             _, loss_val = sess.run([optimizer, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
             print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
-        print_validation_log_loss()
+        print_validation_log_loss() # validation log loss AFTER traning
         submission()
+        sess.close() #clossing the session for good measure
+
 
 def make_submission():
     clf = train_nn()
 
 if __name__ == '__main__':
+    start_time = time.time()
     data = '/kaggle/dev/data-science-bowl-2017-data/'
     stage1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
     labels = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
@@ -203,9 +212,17 @@ if __name__ == '__main__':
     stage1_features_inception = '/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/'
     submissions = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
 
-    ## nn hyper-params
-    num_classes = 2
-    train_batch_size = 64
+    #globals initializing
+    FLAGS = tf.app.flags.FLAGS
+    tf.app.flags.DEFINE_integer('max_steps', 10000,
+                                """Number of batches to run.""")
+    tf.app.flags.DEFINE_integer('num_gpus', 2,
+                                """How many GPUs to use.""")
+    tf.app.flags.DEFINE_boolean('log_device_placement', True,
+                                """Whether to log device placement.""")
+    tf.app.flags.DEFINE_boolean('allow_soft_placement', True,
+                                """Whether to allow soft placement of calculations by tf.""")
 
     make_submission()
-    print("done")
+    end_time = time.time()
+    print("Total Time usage: " + str(timedelta(seconds=int(round(end_time - start_time)))))
