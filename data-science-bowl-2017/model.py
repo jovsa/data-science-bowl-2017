@@ -122,7 +122,6 @@ def train_nn():
         for i in range(0, len(x_test)):
             pred = predict_prob(transfer_values = x_test[i].reshape(1,-1))
             df['cancer'][i] = pred[0,1]
-            # print(pred, " ; shape: ", pred.shape, " ; p_cancer: ", pred[0,1], " ; type:", type(pred), ' ; id: ', df['id'][i])
 
         #Submission preparation
         submission = pd.merge(submission_sample, df, how='left', on=['id'])
@@ -232,7 +231,7 @@ def train_nn():
         print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
 
         print('\nTensorboard runs: train-{} test-{}'. format(timestamp, timestamp))
-        #submission()
+        submission()
         sess.close() #clossing the session for good measure
 
 
@@ -259,7 +258,7 @@ if __name__ == '__main__':
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_integer('num_gpus', 2,
                                 """How many GPUs to use.""")
-    tf.app.flags.DEFINE_boolean('log_device_placement', True,
+    tf.app.flags.DEFINE_boolean('log_device_placement', False,
                                 """Whether to log device placement.""")
     tf.app.flags.DEFINE_boolean('allow_soft_placement', True,
                                 """Whether to allow soft placement of calculations by tf.""")
