@@ -15,8 +15,7 @@ matplotlib.use('Agg')
 import cv2
 import dicom
 import os
-#import mxnet as mx
-from sklearn import cross_validation
+from sklearn import model_selection
 import glob
 from matplotlib import pyplot as plt
 import math
@@ -25,6 +24,21 @@ import time
 from datetime import timedelta
 import tensorflow as tf
 import prettytensor as pt
+
+# Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
+pd.options.mode.chained_assignment = None
+
+def variable_summaries(var):
+    """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+    with tf.name_scope('summaries'):
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar('mean', mean)
+        with tf.name_scope('stddev'):
+            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+        tf.summary.scalar('stddev', stddev)
+        tf.summary.scalar('max', tf.reduce_max(var))
+        tf.summary.scalar('min', tf.reduce_min(var))
+        tf.summary.histogram('histogram', var)
 
 def train_nn():
     def get_batch(x, y, batch_size):
@@ -71,11 +85,13 @@ def train_nn():
                 feed_dict = {x: transfer_values[i:j],
                              y_labels: labels[i:j]}
             else:
-                feed_dict = {x: transfer_values[i:j]}
+                feed_dict = {x: transfer_values[i:j],
+                             y_labels: np.zeros([j-i, num_classes], dtype=np.float32)}
 
             # Calculate the predicted class using TensorFlow.
-            y_calc = sess.run(y, feed_dict=feed_dict)
+            y_calc, step_summary = sess.run([y, merged], feed_dict=feed_dict)
             prob_pred[i:j] = y_calc
+            test_writer.add_summary(step_summary, i)
 
             # Set the start-index for the next batch to the
             # end-index of the current batch.
@@ -105,7 +121,7 @@ def train_nn():
         for i in range(0, len(x_test)):
             pred = predict_prob(transfer_values = x_test[i].reshape(1,-1))
             df['cancer'][i] = pred[0,1]
-            print(pred, " ; shape: ", pred.shape, " ; p_cancer: ", pred[0,1], " ; type:", type(pred), ' ; id: ', df['id'][i])
+            # print(pred, " ; shape: ", pred.shape, " ; p_cancer: ", pred[0,1], " ; type:", type(pred), ' ; id: ', df['id'][i])
 
         #Submission preparation
         submission = pd.merge(submission_sample, df, how='left', on=['id'])
@@ -118,15 +134,14 @@ def train_nn():
         submission.to_csv(filename, index=False)
 
         # Submission file analysis
-        print("----submission file analysis----")
+        print("\n---- Submission file analysis ----")
         patient_count = submission['id'].count()
         predecited = submission['cancer'].count()
         print("Total number of patients: " + str(patient_count))
         print("Number of predictions: " + str(predecited))
-        print("submission file stored at: " + filename)
+        print("\nSubmission file stored at: " + filename)
 
-    def print_validation_log_loss():
-
+    def calc_validation_log_loss():
         # For all the images in the test-set,
         # calculate the predicted classes and whether they are correct.
         prob_pred = predict_prob_test()
@@ -138,7 +153,7 @@ def train_nn():
         # Divide by 2 (magic number)
         validation_log_loss = -1.0 * (temp[0,0] + temp[1,1])/(2 * n)
 
-        print('Validation log loss: {0:.5}'.format(validation_log_loss))
+        return validation_log_loss
 
     num_classes = 2
     batch_size = 10
@@ -155,7 +170,7 @@ def train_nn():
     X = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
     Y = df['cancer'].as_matrix()
 
-    train_x, validation_x, train_y, validation_y = cross_validation.train_test_split(X, Y, random_state=42, stratify=Y,
+    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y,
                                                                     test_size=0.20)
 
     test_labels = (np.arange(num_classes) == validation_y[:, None])+0
@@ -167,17 +182,34 @@ def train_nn():
         #     with tf.device('/gpu:%d' % i):
         model = inception.Inception()
         transfer_len = model.transfer_len
-        x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
-        y = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
-        y_labels = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_labels')
 
-        W = tf.Variable(tf.zeros([transfer_len, num_classes]))
-        b = tf.Variable(tf.zeros([num_classes]))
-        logits = tf.matmul(x, W)+ b
-        y = tf.nn.softmax(logits)
+        with tf.name_scope('layer1'):
+            x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
+            y = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
+            y_labels = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_labels')
+            with tf.name_scope('weights'):
+                W = tf.Variable(tf.zeros([transfer_len, num_classes]))
+                variable_summaries(W)
+            with tf.name_scope('biases'):
+                b = tf.Variable(tf.zeros([num_classes]))
+                variable_summaries(b)
+            with tf.name_scope('Wx_plus_b'):
+                logits = tf.matmul(x, W) + b
+                tf.summary.histogram('Wx_plus_b', logits)
 
-        log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
+            y = tf.nn.softmax(logits)
+            tf.summary.histogram('y', y)
+
+            with tf.name_scope('log_loss'):
+                log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
+                tf.summary.scalar('log_loss', log_loss)
+
+            with tf.name_scope('train'):
+                optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
+
+        merged = tf.summary.merge_all()
+
+    timestamp = str(int(time.time()))
 
     # Setting up config
     config = tf.ConfigProto()
@@ -185,13 +217,20 @@ def train_nn():
     config.log_device_placement=FLAGS.log_device_placement
     config.allow_soft_placement=FLAGS.allow_soft_placement
     with tf.Session(graph=graph, config=config) as sess:
+        train_writer = tf.summary.FileWriter(tensorboard_summaries + '/train-' + timestamp, sess.graph)
+        test_writer = tf.summary.FileWriter(tensorboard_summaries + '/test-' + timestamp)
         sess.run(tf.global_variables_initializer())
-        print_validation_log_loss() # validation log loss BEFORE traning
+
+        print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
         for i in range(FLAGS.max_steps):
             x_batch, y_batch = get_batch(train_x, train_labels, batch_size)
-            _, loss_val = sess.run([optimizer, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
-            print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
-        print_validation_log_loss() # validation log loss AFTER traning
+            _, step_summary, loss_val = sess.run([optimizer, merged, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
+            train_writer.add_summary(step_summary, i)
+            # print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
+
+        print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
+
+        print('\nTensorboard runs: train-{} test-{}'. format(timestamp, timestamp))
         submission()
         sess.close() #clossing the session for good measure
 
@@ -211,6 +250,7 @@ if __name__ == '__main__':
     stage1_processed_pca = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed_pca/'
     stage1_features_inception = '/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/'
     submissions = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
+    tensorboard_summaries = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries'
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
