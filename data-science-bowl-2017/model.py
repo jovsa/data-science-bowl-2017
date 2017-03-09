@@ -24,6 +24,7 @@ import time
 from datetime import timedelta
 import tensorflow as tf
 import prettytensor as pt
+from tqdm import tqdm
 
 # Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
 pd.options.mode.chained_assignment = None
@@ -222,7 +223,7 @@ def train_nn():
         sess.run(tf.global_variables_initializer())
 
         print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
-        for i in range(FLAGS.max_steps):
+        for i in tqdm(range(FLAGS.max_steps)):
             x_batch, y_batch = get_batch(train_x, train_labels, batch_size)
             _, step_summary, loss_val = sess.run([optimizer, merged, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
