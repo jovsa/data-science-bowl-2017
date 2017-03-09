@@ -231,7 +231,7 @@ def train_nn():
         print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
 
         print('\nTensorboard runs: train-{} test-{}'. format(timestamp, timestamp))
-        submission()
+        #submission()
         sess.close() #clossing the session for good measure
 
 
