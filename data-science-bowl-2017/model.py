@@ -66,7 +66,7 @@ def train_nn():
 
         # Allocate an array for the predicted probs which
         # will be calculated in batches and filled into this array.
-        prob_pred = np.zeros(shape=[num_images, num_classes], dtype=np.float64)
+        prob_pred = np.zeros(shape=[num_images, FLAGS.num_classes], dtype=np.float64)
 
         # Now calculate the predicted probs for the batches.
 
@@ -76,7 +76,7 @@ def train_nn():
         while i < num_images:
             # The ending index for the next batch is denoted j.
             if kwargs:
-                j = min(i + batch_size, num_images)
+                j = min(i + FLAGS.batch_size, num_images)
             else:
                 j = 1
 
@@ -87,7 +87,7 @@ def train_nn():
                              y_labels: labels[i:j]}
             else:
                 feed_dict = {x: transfer_values[i:j],
-                             y_labels: np.zeros([j-i, num_classes], dtype=np.float32)}
+                             y_labels: np.zeros([j-i, FLAGS.num_classes], dtype=np.float32)}
 
             # Calculate the predicted class using TensorFlow.
             y_calc, step_summary = sess.run([y, merged], feed_dict=feed_dict)
@@ -155,8 +155,6 @@ def train_nn():
 
         return validation_log_loss
 
-    num_classes = 2
-    batch_size = 10
     ids = list()
     for s in glob.glob(stage1_features_inception + "*"):
         id = os.path.basename(s)
@@ -173,25 +171,26 @@ def train_nn():
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y,
                                                                     test_size=0.20)
 
-    test_labels = (np.arange(num_classes) == validation_y[:, None])+0
-    train_labels = (np.arange(num_classes) == train_y[:, None])+0
+    test_labels = (np.arange(FLAGS.num_classes) == validation_y[:, None])+0
+    train_labels = (np.arange(FLAGS.num_classes) == train_y[:, None])+0
 
     graph = tf.Graph()
     with graph.as_default():
-        # for i in range(FLAGS.num_gpus):
-        #     with tf.device('/gpu:%d' % i):
+
         model = inception.Inception()
         transfer_len = model.transfer_len
 
+        # for i in range(FLAGS.num_gpus):
+        #     with tf.device('/gpu:%d' % i):
         with tf.name_scope('layer1'):
             x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
-            y = tf.placeholder(tf.float32, shape=[None, num_classes], name='y')
-            y_labels = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_labels')
+            y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name='y')
+            y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name='y_labels')
             with tf.name_scope('weights'):
-                W = tf.Variable(tf.zeros([transfer_len, num_classes]))
+                W = tf.Variable(tf.zeros([transfer_len, FLAGS.num_classes]))
                 variable_summaries(W)
             with tf.name_scope('biases'):
-                b = tf.Variable(tf.zeros([num_classes]))
+                b = tf.Variable(tf.zeros([FLAGS.num_classes]))
                 variable_summaries(b)
             with tf.name_scope('Wx_plus_b'):
                 logits = tf.matmul(x, W) + b
@@ -213,7 +212,7 @@ def train_nn():
 
     # Setting up config
     config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
+    config.gpu_options.allow_growth = FLAGS.allow_growth
     config.log_device_placement=FLAGS.log_device_placement
     config.allow_soft_placement=FLAGS.allow_soft_placement
     with tf.Session(graph=graph, config=config) as sess:
@@ -223,7 +222,7 @@ def train_nn():
 
         print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
         for i in tqdm(range(FLAGS.max_steps)):
-            x_batch, y_batch = get_batch(train_x, train_labels, batch_size)
+            x_batch, y_batch = get_batch(train_x, train_labels, FLAGS.batch_size)
             _, step_summary, loss_val = sess.run([optimizer, merged, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
             # print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
@@ -251,17 +250,29 @@ if __name__ == '__main__':
     stage1_features_inception = '/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/'
     submissions = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
     tensorboard_summaries = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries'
+    model_checkpoints = '/kaggle/dev/data-science-bowl-2017-data/model_checkpoints/'
+
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
-    tf.app.flags.DEFINE_integer('max_steps', 10000,
+
+    ## Prediction problem specific
+    tf.app.flags.DEFINE_integer('max_steps', 100,
                                 """Number of batches to run.""")
+    tf.app.flags.DEFINE_integer('num_classes', 2,
+                                """Number of classes to predict.""")
+    tf.app.flags.DEFINE_integer('batch_size', 10,
+                                """Number of items in a batch.""")
+
+    ## Tensorflow specific
     tf.app.flags.DEFINE_integer('num_gpus', 2,
                                 """How many GPUs to use.""")
     tf.app.flags.DEFINE_boolean('log_device_placement', False,
                                 """Whether to log device placement.""")
     tf.app.flags.DEFINE_boolean('allow_soft_placement', True,
                                 """Whether to allow soft placement of calculations by tf.""")
+    tf.app.flags.DEFINE_boolean('allow_growth', True,
+                                """Whether to allow GPU growth by tf.""")
 
     make_submission()
     end_time = time.time()
