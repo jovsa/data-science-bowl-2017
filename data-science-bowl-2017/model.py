@@ -184,7 +184,6 @@ def train_nn():
     require_improvement = int((FLAGS.require_improvement) * (FLAGS.max_iterations))
     iteration_analysis = int((FLAGS.iteration_analysis)*(FLAGS.max_iterations))
 
-
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
@@ -235,6 +234,7 @@ def train_nn():
     # Session construction
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(tensorboard_summaries + '/train-' + start_timestamp, sess.graph)
+        test_writer = tf.summary.FileWriter(tensorboard_summaries + '/test-' + start_timestamp)
         sess.run(tf.global_variables_initializer())
 
         print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
@@ -265,7 +265,7 @@ def train_nn():
                     saver.save(sess=sess, save_path=save_path)
 
                     # Add to Tensorboard
-                    test_writer = tf.summary.FileWriter(tensorboard_summaries + '/test-' + update_timestamp)
+
 
                     # Create prediction
                     patient_count, predicted, filename = submission(update_timestamp)
@@ -275,8 +275,6 @@ def train_nn():
                     print(metrics_msg.format(i + 1, training_loss, cv_loss))
                     output_msg = "Submission file: {0:}"
                     print(output_msg.format(filename))
-                    print('\nTensorboard runs: train-{} test-{}'. format(start_timestamp, update_timestamp))
-
 
                 # If no improvement found in the required number of iterations.
                 if i - last_improvement > require_improvement:
@@ -285,6 +283,7 @@ def train_nn():
 
 
         print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
+        print('\nTensorboard runs: train-{} test-{}'. format(start_timestamp, update_timestamp))
         print(all_timstamps)
 
         # submission()
@@ -318,7 +317,6 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 10,
                                 """Number of items in a batch.""")
-
     tf.app.flags.DEFINE_integer('max_iterations', 100000,
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_float('require_improvement', 0.20,
