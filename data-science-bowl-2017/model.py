@@ -30,7 +30,7 @@ from tqdm import tqdm
 pd.options.mode.chained_assignment = None
 
 def variable_summaries(var):
-    """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+    # Attach a lot of summaries to a Tensor (for TensorBoard visualization).
     with tf.name_scope('summaries'):
         mean = tf.reduce_mean(var)
         tf.summary.scalar('mean', mean)
@@ -59,7 +59,6 @@ def train_nn():
         return x_batch, y_batch
 
     def predict_prob(transfer_values, **kwargs):
-        # Number of images.
         num_images = len(transfer_values)
         if kwargs:
             labels = kwargs['labels']
@@ -226,10 +225,10 @@ def train_nn():
     config.log_device_placement=FLAGS.log_device_placement
     config.allow_soft_placement=FLAGS.allow_soft_placement
 
-    all_timstamps = []
+    all_timstamps = {}
     # timestamp used to identify the start of run
     start_timestamp = str(int(time.time()))
-    all_timstamps.append(start_timestamp)
+    all_timstamps[start_timestamp] = 'train'
 
     # Session construction
     with tf.Session(graph=graph, config=config) as sess:
@@ -255,7 +254,7 @@ def train_nn():
 
                     # timestamp used to update
                     update_timestamp = str(int(time.time()))
-                    all_timstamps.append(update_timestamp)
+                    all_timstamps[update_timestamp] = 'validation'
 
                     # Save model
                     checkpoint_loc = os.path.join(model_checkpoints, 'checkpoint-' + update_timestamp )
@@ -281,9 +280,8 @@ def train_nn():
                     print("No improvement found in a while, stopping optimization.")
                     break
 
-
         print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
-        print('\nTensorboard runs: train-{} test-{}'. format(start_timestamp, update_timestamp))
+        print('\nTensorboard runs: train-{} test-{}'. format(start_timestamp, start_timestamp))
         print(all_timstamps)
 
         # submission()
@@ -317,7 +315,7 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 10,
                                 """Number of items in a batch.""")
-    tf.app.flags.DEFINE_integer('max_iterations', 100000,
+    tf.app.flags.DEFINE_integer('max_iterations', 1000,
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_float('require_improvement', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
