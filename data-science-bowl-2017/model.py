@@ -175,9 +175,6 @@ def train_nn():
     test_labels = (np.arange(FLAGS.num_classes) == validation_y[:, None])+0
     train_labels = (np.arange(FLAGS.num_classes) == train_y[:, None])+0
 
-    # timestamp used to identify the run
-    timestamp = str(int(time.time()))
-
     # Best validation accuracy seen so far.
     best_validation_loss = 100.0
 
@@ -223,10 +220,6 @@ def train_nn():
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
-        save_path = os.path.join(model_checkpoints, 'best_validation')
-        print(save_path)
-
-
 
     # Setting up config
     config = tf.ConfigProto()
@@ -234,10 +227,14 @@ def train_nn():
     config.log_device_placement=FLAGS.log_device_placement
     config.allow_soft_placement=FLAGS.allow_soft_placement
 
+    all_timstamps = []
+    # timestamp used to identify the start of run
+    start_timestamp = str(int(time.time()))
+    all_timstamps.append(start_timestamp)
+
     # Session construction
     with tf.Session(graph=graph, config=config) as sess:
-        train_writer = tf.summary.FileWriter(tensorboard_summaries + '/train-' + timestamp, sess.graph)
-        test_writer = tf.summary.FileWriter(tensorboard_summaries + '/test-' + timestamp)
+        train_writer = tf.summary.FileWriter(tensorboard_summaries + '/train-' + start_timestamp, sess.graph)
         sess.run(tf.global_variables_initializer())
 
         print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
@@ -256,16 +253,29 @@ def train_nn():
                     best_validation_loss = cv_loss
                     last_improvement = i
 
-                    # Create prediction
-                    patient_count, predicted, filename = submission(timestamp)
+                    # timestamp used to update
+                    update_timestamp = str(int(time.time()))
+                    all_timstamps.append(update_timestamp)
+
                     # Save model
+                    checkpoint_loc = os.path.join(model_checkpoints, 'checkpoint-' + update_timestamp )
+                    if not os.path.exists(checkpoint_loc):
+                        os.makedirs(checkpoint_loc)
+                    save_path = os.path.join(checkpoint_loc, 'best_validation-'+ update_timestamp)
                     saver.save(sess=sess, save_path=save_path)
 
-                    # Notify
+                    # Add to Tensorboard
+                    test_writer = tf.summary.FileWriter(tensorboard_summaries + '/test-' + update_timestamp)
+
+                    # Create prediction
+                    patient_count, predicted, filename = submission(update_timestamp)
+
+                    # Output message
                     metrics_msg = "Improvement found on iteration:{0:>6}, Train-Batch Log Loss: {1:f}, Validation Log Loss: {2:f}"
                     print(metrics_msg.format(i + 1, training_loss, cv_loss))
                     output_msg = "Submission file: {0:}"
                     print(output_msg.format(filename))
+                    print('\nTensorboard runs: train-{} test-{}'. format(start_timestamp, update_timestamp))
 
 
                 # If no improvement found in the required number of iterations.
@@ -274,14 +284,9 @@ def train_nn():
                     break
 
 
-
-
-
-
-
-
         print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
-        print('\nTensorboard runs: train-{} test-{}'. format(timestamp, timestamp))
+        print(all_timstamps)
+
         # submission()
         sess.close() #clossing the session for good measure
 
