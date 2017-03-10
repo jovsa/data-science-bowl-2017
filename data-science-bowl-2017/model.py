@@ -174,6 +174,19 @@ def train_nn():
     test_labels = (np.arange(FLAGS.num_classes) == validation_y[:, None])+0
     train_labels = (np.arange(FLAGS.num_classes) == train_y[:, None])+0
 
+
+    timestamp = str(int(time.time()))
+
+    # Best validation accuracy seen so far.
+    best_validation_loss = 100.0
+
+    # Iteration-number for last improvement to validation accuracy.
+    last_improvement = 0
+
+    require_improvement = FLAGS.require_improvement
+
+
+    # Graph construction
     graph = tf.Graph()
     with graph.as_default():
 
@@ -207,30 +220,61 @@ def train_nn():
                 optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
 
         merged = tf.summary.merge_all()
+        saver = tf.train.Saver()
+        save_path = os.path.join(model_checkpoints, 'best_validation')
+        print(save_path)
 
-    timestamp = str(int(time.time()))
+
 
     # Setting up config
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = FLAGS.allow_growth
     config.log_device_placement=FLAGS.log_device_placement
     config.allow_soft_placement=FLAGS.allow_soft_placement
+
+    # Session construction
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(tensorboard_summaries + '/train-' + timestamp, sess.graph)
         test_writer = tf.summary.FileWriter(tensorboard_summaries + '/test-' + timestamp)
         sess.run(tf.global_variables_initializer())
 
         print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
+
         for i in tqdm(range(FLAGS.max_steps)):
             x_batch, y_batch = get_batch(train_x, train_labels, FLAGS.batch_size)
             _, step_summary, loss_val = sess.run([optimizer, merged, log_loss], feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
-            # print('Batch {0} Log_loss: {1:.5}'.format(i, loss_val))
+
+            # Iteration analysis after every FLAGS.iteration_analysis iterations and after last iteration
+            if (i % FLAGS.iteration_analysis == 0) or (i == (i - 1)):
+                training_loss = loss_val
+                cv_loss = calc_validation_log_loss()
+
+                if cv_loss < best_validation_loss:
+                    best_validation_loss = cv_loss
+                    last_improvement = i
+                    saver.save(sess=sess, save_path=save_path)
+
+                    # A string to be printed below, shows improvement found.
+                    msg = "Improvement found on iteration:{0:>6}, Train-Batch Log Loss: {1:f}, Validation Log Loss: {2:f}"
+                    print(msg.format(i + 1, training_loss, cv_loss))
+
+                # If no improvement found in the required number of iterations.
+                if i - last_improvement > require_improvement:
+                    print("No improvement found in a while, stopping optimization.")
+                    # # Break out from the for-loop.
+                    # break
+
+
+
+
+
+
+
 
         print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
-
         print('\nTensorboard runs: train-{} test-{}'. format(timestamp, timestamp))
-        submission()
+        # submission()
         sess.close() #clossing the session for good measure
 
 
@@ -250,19 +294,24 @@ if __name__ == '__main__':
     stage1_features_inception = '/kaggle/dev/data-science-bowl-2017-data/CIFAR-10/cache/'
     submissions = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
     tensorboard_summaries = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries'
-    model_checkpoints = '/kaggle/dev/data-science-bowl-2017-data/model_checkpoints/'
+    model_checkpoints = '/kaggle/dev/data-science-bowl-2017-data/models/checkpoints/'
 
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
 
     ## Prediction problem specific
-    tf.app.flags.DEFINE_integer('max_steps', 100,
-                                """Number of batches to run.""")
     tf.app.flags.DEFINE_integer('num_classes', 2,
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 10,
                                 """Number of items in a batch.""")
+
+    tf.app.flags.DEFINE_integer('max_steps', 100,000,
+                                """Number of batches to run.""")
+    tf.app.flags.DEFINE_integer('require_improvement', 10,000,
+                                """Stop optimization if no improvement found in this many iterations.""")
+    tf.app.flags.DEFINE_float('iteration_analysis', 0.10,
+                                """Number of iteration after which analysis will be done""")
 
     ## Tensorflow specific
     tf.app.flags.DEFINE_integer('num_gpus', 2,
