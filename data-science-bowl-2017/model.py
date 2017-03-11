@@ -43,64 +43,61 @@ def variable_summaries(var):
 
 def train_nn():
     def get_batch(x, y, batch_size):
-        # Number of images (transfer-values) in the training-set.
         num_images = len(x)
-
-        # Create a random index.
         idx = np.random.choice(num_images,
                                size=batch_size,
                                replace=False)
-
-        # Use the random index to select random x and y-values.
-        # We use the transfer-values instead of images as x-values.
         x_batch = x[idx]
         y_batch = y[idx]
 
         return x_batch, y_batch
 
-    def predict_prob(transfer_values, **kwargs):
+    def predict_prob(transfer_values, labels):
         num_images = len(transfer_values)
-        if kwargs:
-            labels = kwargs['labels']
-
-        # Allocate an array for the predicted probs which
-        # will be calculated in batches and filled into this array.
         prob_pred = np.zeros(shape=[num_images, FLAGS.num_classes], dtype=np.float64)
 
-        # Now calculate the predicted probs for the batches.
-
-        # The starting index for the next batch is denoted i.
         i = 0
-
         while i < num_images:
-            # The ending index for the next batch is denoted j.
-            if kwargs:
-                j = min(i + FLAGS.batch_size, num_images)
-            else:
-                j = 1
+            j = min(i + FLAGS.batch_size, num_images)
+            feed_dict = {x: transfer_values[i:j],
+                         y_labels: labels[i:j]}
 
-            # Create a feed-dict with the images and labels
-            # between index i and j.
-            if kwargs:
-                feed_dict = {x: transfer_values[i:j],
-                             y_labels: labels[i:j]}
-            else:
-                feed_dict = {x: transfer_values[i:j],
-                             y_labels: np.zeros([j-i, FLAGS.num_classes], dtype=np.float32)}
-
-            # Calculate the predicted class using TensorFlow.
             y_calc, step_summary = sess.run([y, merged], feed_dict=feed_dict)
             prob_pred[i:j] = y_calc
-            test_writer.add_summary(step_summary, i)
-
+            validation_writer.add_summary(step_summary, i)
             # Set the start-index for the next batch to the
             # end-index of the current batch.
             i = j
-
-        # Create a boolean array whether each image is correctly classified.
-        # print('Predicted prob: ' + str(prob_pred.shape))
-
         return prob_pred
+
+    def predict_prob_test(transfer_values):
+        num_images = len(transfer_values)
+        prob_pred = np.zeros(shape=[num_images, FLAGS.num_classes], dtype=np.float64)
+
+        i = 0
+        while i < num_images:
+            j = 1
+            feed_dict = {x: transfer_values[i:j],
+                         y_labels: np.zeros([j, FLAGS.num_classes], dtype=np.float32)}
+
+            y_calc, step_summary = sess.run([y, merged], feed_dict=feed_dict)
+            prob_pred[i:j] = y_calc
+            # Set the start-index for the next batch to the
+            # end-index of the current batch.
+            i = j
+        return prob_pred
+
+    def calc_validation_log_loss():
+        prob_pred = predict_prob(transfer_values = validation_x, labels = validation_labels)
+        p = np.maximum(np.minimum(prob_pred, 1-10e-15), 10e-15)
+        l = np.transpose(validation_labels + 0.0)
+        n = validation_labels.shape[0]
+        temp = np.matmul(l, np.log(p)) + np.matmul((1 - l), np.log(1 - p))
+
+        # Divide by 2 (magic number)
+        validation_log_loss = -1.0 * (temp[0,0] + temp[1,1])/(2 * n)
+
+        return validation_log_loss
 
     def submission(timestamp):
         ids = list()
@@ -115,7 +112,7 @@ def train_nn():
         x_test = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
 
         for i in range(0, len(x_test)):
-            pred = predict_prob(transfer_values = x_test[i].reshape(1,-1))
+            pred = predict_prob_test(transfer_values = x_test[i].reshape(1,-1))
             df['cancer'][i] = pred[0,1]
 
         #Submission preparation
@@ -131,22 +128,6 @@ def train_nn():
         predicted = submission['cancer'].count()
 
         return patient_count, predicted, filename
-
-
-    def calc_validation_log_loss():
-        prob_pred = predict_prob(transfer_values = validation_x, labels = test_labels)
-        p = np.maximum(np.minimum(prob_pred, 1-10e-15), 10e-15)
-        l = np.transpose(test_labels + 0.0)
-        n = test_labels.shape[0]
-        temp = np.matmul(l, np.log(p)) + np.matmul((1 - l), np.log(1 - p))
-
-        # Divide by 2 (magic number)
-        validation_log_loss = -1.0 * (temp[0,0] + temp[1,1])/(2 * n)
-
-        return validation_log_loss
-
-
-
 
     ids = list()
     for s in glob.glob(stage1_features_inception + "*"):
@@ -164,7 +145,7 @@ def train_nn():
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y,
                                                                     test_size=0.20)
 
-    test_labels = (np.arange(FLAGS.num_classes) == validation_y[:, None])+0
+    validation_labels = (np.arange(FLAGS.num_classes) == validation_y[:, None])+0
     train_labels = (np.arange(FLAGS.num_classes) == train_y[:, None])+0
 
     # Best validation accuracy seen so far.
@@ -225,7 +206,7 @@ def train_nn():
     # Session construction
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(tensorboard_summaries + '/train-' + start_timestamp, sess.graph)
-        test_writer = tf.summary.FileWriter(tensorboard_summaries + '/test-' + start_timestamp)
+        validation_writer = tf.summary.FileWriter(tensorboard_summaries + '/validation-' + start_timestamp)
         sess.run(tf.global_variables_initializer())
 
         print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
@@ -269,14 +250,12 @@ def train_nn():
 
                 # If no improvement found in the required number of iterations.
                 if i - last_improvement > require_improvement:
-                    print("No improvement found in a while, stopping optimization.")
-                    break
+                    print("No improvement found in a while, you should consider stopping the optimization.")
+                    # break
 
         print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
-        print('\nTensorboard runs: train-{} test-{}'. format(start_timestamp, start_timestamp))
+        print('\nTensorboard runs: train-{} validation-{}'. format(start_timestamp, start_timestamp))
         print(all_timstamps)
-
-        # submission()
         sess.close() #clossing the session for good measure
 
 
@@ -319,9 +298,9 @@ if __name__ == '__main__':
                                 """How many GPUs to use.""")
     tf.app.flags.DEFINE_boolean('log_device_placement', False,
                                 """Whether to log device placement.""")
-    tf.app.flags.DEFINE_boolean('allow_soft_placement', False,
+    tf.app.flags.DEFINE_boolean('allow_soft_placement', True,
                                 """Whether to allow soft placement of calculations by tf.""")
-    tf.app.flags.DEFINE_boolean('allow_growth', False,
+    tf.app.flags.DEFINE_boolean('allow_growth', True,
                                 """Whether to allow GPU growth by tf.""")
 
     make_submission()
