@@ -102,10 +102,6 @@ def train_nn():
 
         return prob_pred
 
-    def predict_prob_test():
-        return predict_prob(transfer_values = validation_x,
-                           labels = test_labels)
-
     def submission(timestamp):
         ids = list()
         for s in glob.glob(stage1_features_inception + "*"):
@@ -134,14 +130,11 @@ def train_nn():
         patient_count = submission['id'].count()
         predicted = submission['cancer'].count()
 
-
         return patient_count, predicted, filename
 
 
     def calc_validation_log_loss():
-        # For all the images in the test-set,
-        # calculate the predicted classes and whether they are correct.
-        prob_pred = predict_prob_test()
+        prob_pred = predict_prob(transfer_values = validation_x, labels = test_labels)
         p = np.maximum(np.minimum(prob_pred, 1-10e-15), 10e-15)
         l = np.transpose(test_labels + 0.0)
         n = test_labels.shape[0]
@@ -186,7 +179,6 @@ def train_nn():
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
-
         model = inception.Inception()
         transfer_len = model.transfer_len
 
@@ -327,9 +319,9 @@ if __name__ == '__main__':
                                 """How many GPUs to use.""")
     tf.app.flags.DEFINE_boolean('log_device_placement', False,
                                 """Whether to log device placement.""")
-    tf.app.flags.DEFINE_boolean('allow_soft_placement', True,
+    tf.app.flags.DEFINE_boolean('allow_soft_placement', False,
                                 """Whether to allow soft placement of calculations by tf.""")
-    tf.app.flags.DEFINE_boolean('allow_growth', True,
+    tf.app.flags.DEFINE_boolean('allow_growth', False,
                                 """Whether to allow GPU growth by tf.""")
 
     make_submission()
