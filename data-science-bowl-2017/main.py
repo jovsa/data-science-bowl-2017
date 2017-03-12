@@ -32,6 +32,7 @@ import time
 from datetime import timedelta
 import tensorflow as tf
 import prettytensor as pt
+from tqdm import tqdm
 
 ######################
 def pre_process():
@@ -543,25 +544,24 @@ def PCA_transform(patient_data, components):
     return patient_data_pca, eigenvectors, explained_variance_ratio
 
 def process_pca():
-    t0 = time()
+    t0 = time.time()
     index = 1
     pca_n_components = 10000 # want to have n_componets == dim[0]
-    for folder in glob.glob(stage1_processed + 'segment_lungs_fill_*'):
-        t0 = time()
-        filename = re.match(r'segment_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder))
+    for folder in tqdm(glob.glob(stage1_processed + 'scan_segmented_lungs_fill_*')):
+        t0 = time.time()
+        filename = re.match(r'scan_segmented_lungs_fill_([a-f0-9].*).npy', os.path.basename(folder))
         p_id = filename.group(1)
         if(file_exists(p_id)):
             segment_lungs_fill_ = np.load(stage1_processed + filename.group(0))
-            segment_lungs_ = np.load(stage1_processed + "segmented_lungs_" + str(filename.group(1)) + ".npy" )
+            segment_lungs_ = np.load(stage1_processed + "scan_segmented_lungs_fill_" + str(filename.group(1)) + ".npy" )
             lungs = segment_lungs_fill_ -  segment_lungs_
             lungs = lungs.reshape(lungs.shape[0], lungs.shape[1]* lungs.shape[2])
             lungs_pca, eigenvectors, _ = PCA_transform(lungs, pca_n_components)
             np.save(stage1_processed_pca + "lungs_pca_" + p_id, lungs_pca)
-            print("id: " + p_id + " -> (" + str(index) + "/1595)" + " done in %0.3fs" % (time() - t0))
+            print("id: " + p_id + " -> (" + str(index) + "/1595)" + " done in %0.3fs" % (time.time() - t0))
         else:
             print("already exists, skipping: " + p_id)
         index += 1
-    print("total PCA done in %0.3fs" % (time() - t0))
 
 
 # Helper function for scans to
@@ -642,11 +642,11 @@ if __name__ == '__main__':
     # cls_test = np.empty([2, 2])
 
 
-    #process_pca()
+    process_pca()
     #calc_features()
     #calc_features_inception()
     #convnet_3D()
-    make_submit()
+    #make_submit()
     print("done")
 
 # Model Building and Traning
