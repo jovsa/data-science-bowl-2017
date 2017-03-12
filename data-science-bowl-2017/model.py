@@ -52,7 +52,7 @@ def train_nn():
 
         return x_batch, y_batch
 
-    def predict_prob(transfer_values, labels):
+    def predict_prob_validation(transfer_values, labels, write_to_tensorboard=False):
         num_images = len(transfer_values)
         prob_pred = np.zeros(shape=[num_images, FLAGS.num_classes], dtype=np.float64)
 
@@ -64,7 +64,9 @@ def train_nn():
 
             y_calc, step_summary = sess.run([y, merged], feed_dict=feed_dict)
             prob_pred[i:j] = y_calc
-            validation_writer.add_summary(step_summary, i)
+
+            if write_to_tensorboard:
+                validation_writer.add_summary(step_summary, i)
             # Set the start-index for the next batch to the
             # end-index of the current batch.
             i = j
@@ -87,8 +89,8 @@ def train_nn():
             i = j
         return prob_pred
 
-    def calc_validation_log_loss():
-        prob_pred = predict_prob(transfer_values = validation_x, labels = validation_labels)
+    def calc_validation_log_loss(write_to_tensorboard = False):
+        prob_pred = predict_prob_validation(transfer_values = validation_x, labels = validation_labels, write_to_tensorboard = write_to_tensorboard)
         p = np.maximum(np.minimum(prob_pred, 1-10e-15), 10e-15)
         l = np.transpose(validation_labels + 0.0)
         n = validation_labels.shape[0]
@@ -198,17 +200,18 @@ def train_nn():
     config.log_device_placement=FLAGS.log_device_placement
     config.allow_soft_placement=FLAGS.allow_soft_placement
 
-    all_timstamps = {}
+    all_timstamps = ()
     # timestamp used to identify the start of run
     start_timestamp = str(int(time.time()))
-    all_timstamps[start_timestamp] = 'train'
+    all_timstamps = all_timstamps + ({'train', start_timestamp},)
+
 
     # Session construction
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(tensorboard_summaries + '/train-' + start_timestamp, sess.graph)
-        validation_writer = tf.summary.FileWriter(tensorboard_summaries + '/validation-' + start_timestamp)
         sess.run(tf.global_variables_initializer())
 
+        print("before Pre-train")
         print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
 
         for i in tqdm(range(FLAGS.max_iterations)):
@@ -227,7 +230,7 @@ def train_nn():
 
                     # timestamp used to update
                     update_timestamp = str(int(time.time()))
-                    all_timstamps[update_timestamp] = 'validation'
+                    all_timstamps = all_timstamps + ({'validation', update_timestamp},)
 
                     # Save model
                     checkpoint_loc = os.path.join(model_checkpoints, 'checkpoint-' + update_timestamp )
@@ -237,9 +240,10 @@ def train_nn():
                     saver.save(sess=sess, save_path=save_path)
 
                     # Add to Tensorboard
+                    validation_writer = tf.summary.FileWriter(tensorboard_summaries + '/validation-' + update_timestamp)
+                    calc_validation_log_loss(write_to_tensorboard=True)
 
-
-                    # Create prediction
+                    # Create prediction on test and output a submission
                     patient_count, predicted, filename = submission(update_timestamp)
 
                     # Output message
@@ -254,7 +258,6 @@ def train_nn():
                     # break
 
         print('Post-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
-        print('\nTensorboard runs: train-{} validation-{}'. format(start_timestamp, start_timestamp))
         print(all_timstamps)
         sess.close() #clossing the session for good measure
 
@@ -286,7 +289,7 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 10,
                                 """Number of items in a batch.""")
-    tf.app.flags.DEFINE_integer('max_iterations', 1000,
+    tf.app.flags.DEFINE_integer('max_iterations', 100000,
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_float('require_improvement', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
