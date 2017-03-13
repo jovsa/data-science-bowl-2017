@@ -25,6 +25,7 @@ from datetime import timedelta
 import tensorflow as tf
 import prettytensor as pt
 from tqdm import tqdm
+import scipy
 
 # Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
 pd.options.mode.chained_assignment = None
@@ -42,6 +43,14 @@ def variable_summaries(var):
         tf.summary.histogram('histogram', var)
 
 def train_nn():
+    def img_to_rgb(im):
+        w, h = im.shape
+        ret = np.empty((w, h, 3), dtype=np.uint8)
+        ret[:, :, 0] = im
+        ret[:, :, 1] = im
+        ret[:, :, 2] = im
+        return ret
+
     def get_batch(x, y, batch_size):
         num_images = len(x)
         idx = np.random.choice(num_images,
@@ -105,13 +114,13 @@ def train_nn():
         ids = list()
         for s in glob.glob(stage1_features_inception + "*"):
             id = os.path.basename(s)
-            id = re.match(r'inception_cifar10_([a-f0-9].*).pkl' , id).group(1)
+            id = re.match(r'lungs_pca_([a-f0-9].*).npy' , id).group(1)
             ids.append(id)
         ids = pd.DataFrame(ids,  columns=["id"])
 
         submission_sample = pd.read_csv(stage1_submission)
         df = pd.merge(submission_sample, ids, how='inner', on=['id'])
-        x_test = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
+        x_test = np.array([np.mean(np.load(stage1_features_inception + "lungs_pca_" + s + ".npy"), axis=0) for s in df['id'].tolist()])
 
         for i in range(0, len(x_test)):
             pred = predict_prob_test(transfer_values = x_test[i].reshape(1,-1))
@@ -131,19 +140,150 @@ def train_nn():
 
         return patient_count, predicted, filename
 
+    def new_weights(shape):
+        return tf.Variable(tf.truncated_normal(shape, stddev=0.05))
+
+    def new_biases(length):
+        return tf.Variable(tf.constant(0.05, shape=[length]))
+
+    def new_conv_layer(input,              # The previous layer.
+                   num_input_channels, # Num. channels in prev. layer.
+                   filter_size,        # Width and height of each filter.
+                   num_filters,        # Number of filters.
+                   use_pooling=True):  # Use 2x2 max-pooling.
+
+        # Shape of the filter-weights for the convolution.
+        # This format is determined by the TensorFlow API.
+        shape = [filter_size, filter_size, num_input_channels, num_filters]
+
+        # Create new weights aka. filters with the given shape.
+        weights = new_weights(shape=shape)
+
+        # Create new biases, one for each filter.
+        biases = new_biases(length=num_filters)
+
+        # Create the TensorFlow operation for convolution.
+        # Note the strides are set to 1 in all dimensions.
+        # The first and last stride must always be 1,
+        # because the first is for the image-number and
+        # the last is for the input-channel.
+        # But e.g. strides=[1, 2, 2, 1] would mean that the filter
+        # is moved 2 pixels across the x- and y-axis of the image.
+        # The padding is set to 'SAME' which means the input image
+        # is padded with zeroes so the size of the output is the same.
+        layer = tf.nn.conv2d(input=input,
+                             filter=weights,
+                             strides=[1, 1, 1, 1],
+                             padding='SAME')
+
+        # Add the biases to the results of the convolution.
+        # A bias-value is added to each filter-channel.
+        layer += biases
+
+        # Use pooling to down-sample the image resolution?
+        if use_pooling:
+            # This is 2x2 max-pooling, which means that we
+            # consider 2x2 windows and select the largest value
+            # in each window. Then we move 2 pixels to the next window.
+            layer = tf.nn.max_pool(value=layer,
+                                   ksize=[1, 2, 2, 1],
+                                   strides=[1, 2, 2, 1],
+                                   padding='SAME')
+
+        # Rectified Linear Unit (ReLU).
+        # It calculates max(x, 0) for each input pixel x.
+        # This adds some non-linearity to the formula and allows us
+        # to learn more complicated functions.
+        layer = tf.nn.relu(layer)
+
+        # Note that ReLU is normally executed before the pooling,
+        # but since relu(max_pool(x)) == max_pool(relu(x)) we can
+        # save 75% of the relu-operations by max-pooling first.
+
+        # We return both the resulting layer and the filter-weights
+        # because we will plot the weights later.
+        return layer, weights
+
+    def flatten_layer(layer):
+        # Get the shape of the input layer.
+        layer_shape = layer.get_shape()
+
+        # The shape of the input layer is assumed to be:
+        # layer_shape == [num_images, img_height, img_width, num_channels]
+
+        # The number of features is: img_height * img_width * num_channels
+        # We can use a function from TensorFlow to calculate this.
+        num_features = layer_shape[1:4].num_elements()
+
+        # Reshape the layer to [num_images, num_features].
+        # Note that we just set the size of the second dimension
+        # to num_features and the size of the first dimension to -1
+        # which means the size in that dimension is calculated
+        # so the total size of the tensor is unchanged from the reshaping.
+        layer_flat = tf.reshape(layer, [-1, num_features])
+
+        # The shape of the flattened layer is now:
+        # [num_images, img_height * img_width * num_channels]
+
+        # Return both the flattened layer and the number of features.
+        return layer_flat, num_features
+
+    def new_fc_layer(input,          # The previous layer.
+                 num_inputs,     # Num. inputs from prev. layer.
+                 num_outputs,    # Num. outputs.
+                 use_relu=True): # Use Rectified Linear Unit (ReLU)?
+
+        # Create new weights and biases.
+        weights = new_weights(shape=[num_inputs, num_outputs])
+        biases = new_biases(length=num_outputs)
+
+        # Calculate the layer as the matrix multiplication of
+        # the input and weights, and then add the bias-values.
+        layer = tf.matmul(input, weights) + biases
+
+        # Use ReLU?
+        if use_relu:
+            layer = tf.nn.relu(layer)
+
+        return layer
+
+
+
+    img_height = 299
+    img_width = 299
+
+    # Convolutional Layer 1.
+    num_channels1 = 3
+    filter_size1 = 5          # Convolution filters are 5 x 5 pixels.
+    num_filters1 = 16         # There are 16 of these filters.
+
+    # Convolutional Layer 2.
+    filter_size2 = 5          # Convolution filters are 5 x 5 pixels.
+    num_filters2 = 36         # There are 36 of these filters.
+
+    # Fully-connected layer.
+    fc_size = 128             # Number of neurons in fully-connected layer.
+
+
+    img_size_flat = img_height * img_width
     ids = list()
-    for s in glob.glob(stage1_features_inception + "*"):
+    for s in glob.glob(stage1_processed_pca + "*"):
         id = os.path.basename(s)
-        id = re.match(r'inception_cifar10_([a-f0-9].*).pkl' , id).group(1)
+        id = re.match(r'lungs_pca_([a-f0-9].*).npy' , id).group(1)
         ids.append(id)
     ids = pd.DataFrame(ids,  columns=["id"])
 
     df = pd.read_csv(labels)
     df = pd.merge(df, ids, how='inner', on=['id'])
 
-    X = np.array([np.mean(np.load(stage1_features_inception + "inception_cifar10_" + s + ".pkl"), axis=0) for s in df['id'].tolist()])
-    Y = df['cancer'].as_matrix()
+    X = np.array([np.load(stage1_processed_pca + "lungs_pca_" + s + ".npy") for s in df['id'].tolist()])
 
+    # Adding channel to input data
+    for i in range(X.shape[0]):
+        X[i] = img_to_rgb(X[i])
+        X[i] = scipy.misc.imresize(X[i], [img_height,img_width], interp='bilinear')
+
+    Y = df['cancer'].as_matrix()
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y,
                                                                     test_size=0.20)
 
@@ -162,26 +302,44 @@ def train_nn():
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
-        model = inception.Inception()
-        transfer_len = model.transfer_len
 
         # for i in range(FLAGS.num_gpus):
         #     with tf.device('/gpu:%d' % i):
-        with tf.name_scope('layer1'):
-            x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
+        with tf.name_scope('base_cnn'):
+            x = tf.placeholder(tf.float32, shape=[None, img_size_flat], name='x')
             y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name='y')
             y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name='y_labels')
-            with tf.name_scope('weights'):
-                W = tf.Variable(tf.zeros([transfer_len, FLAGS.num_classes]))
-                variable_summaries(W)
-            with tf.name_scope('biases'):
-                b = tf.Variable(tf.zeros([FLAGS.num_classes]))
-                variable_summaries(b)
-            with tf.name_scope('Wx_plus_b'):
-                logits = tf.matmul(x, W) + b
-                tf.summary.histogram('Wx_plus_b', logits)
+            with tf.name_scope('cv_1'):
+                layer_conv1, weights_conv1 = \
+                    new_conv_layer(input=x,
+                                   num_input_channels=num_channels1,
+                                   filter_size=filter_size1,
+                                   num_filters=num_filters1,
+                                   use_pooling=True)
+            with tf.name_scope('cv_2'):
+                layer_conv2, weights_conv2 = \
+                    new_conv_layer(input=layer_conv1,
+                                   num_input_channels=num_filters1,
+                                   filter_size=filter_size2,
+                                   num_filters=num_filters2,
+                                   use_pooling=True)
 
-            y = tf.nn.softmax(logits)
+            with tf.name_scope('fc_1'):
+                layer_flat, num_features = flatten_layer(layer_conv2)
+
+                layer_fc1 = new_fc_layer(input=layer_flat,
+                         num_inputs=num_features,
+                         num_outputs=fc_size,
+                         use_relu=True)
+
+            with tf.name_scope('fc_2'):
+                layer_fc2 = new_fc_layer(input=layer_fc1,
+                         num_inputs=fc_size,
+                         num_outputs=num_classes,
+                         use_relu=False)
+
+
+            y = tf.nn.softmax(layer_fc2)
             tf.summary.histogram('y', y)
 
             with tf.name_scope('log_loss'):
