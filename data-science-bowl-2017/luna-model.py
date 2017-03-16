@@ -188,21 +188,28 @@ def train_3d_nn(data_postprocessed = False):
     #### Helper function ####
 
 
-
+    time0 = time.time()
     patient_ids = get_ids(DATA_PATH_PREPROCESS)
-    X, Y = get_data(patient_ids[0:100], DATA_PATH_PREPROCESS) ## IMPORTANT: Remove bounds when traning on the whole
+    X, Y = get_data(patient_ids, DATA_PATH_PREPROCESS) ## IMPORTANT: Remove bounds when traning on the whole
+    end_time_load = time.time()
+    print("Total time to load data: " + str(timedelta(seconds=int(round(end_time_load - time0)))))
 
-
-    #X = normalize(X)
-    #X = zero_center(X)
+    X = normalize(X)
+    end_time_load = time.time()
+    print("Total time to normalize: " + str(timedelta(seconds=int(round(end_time_load - time0)))))
+    X = zero_center(X)
     # Tag to put in run identification
-    data_postprocessed = False
+    end_time_load = time.time()
+    print("Total time to zero center: " + str(timedelta(seconds=int(round(end_time_load - time0)))))
+    data_postprocessed = True
 
 
     print('Splitting into train, validation sets')
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y,
                                                                     test_size=0.20)
 
+    end_time_load = time.time()
+    print("Total time to split: " + str(timedelta(seconds=int(round(end_time_load - time0)))))
     print('train_x: {}'.format(train_x.shape))
     print('validation_x: {}'.format(validation_x.shape))
     print('train_y: {}'.format(train_y.shape))
@@ -290,7 +297,7 @@ def train_3d_nn(data_postprocessed = False):
     start_timestamp = str(int(time.time()))
 
     # Name used to save all artifacts of run
-    run_name = 'runType=train_timestamp={0:}_batchSize={1:}_maxIterations={2:}_modelName=\'{3:}\'_numTrain={4:}_numValidation={5:}_isPostprocess={6:}'
+    run_name = 'runType=train_timestamp={0:}_batchSize={1:}_maxIterations={2:}_modelName=\'{3:}\'_numTrain={4:}_numValidation={5:}_isPostprocessed={6:}'
     run_name = run_name.format(start_timestamp, FLAGS.batch_size, FLAGS.max_iterations, model_name, train_x.shape[0], validation_x.shape[0], data_postprocessed)
 
     with tf.Session(graph=graph, config=config) as sess:
@@ -322,6 +329,7 @@ def post_process():
 
 
 if __name__ == '__main__':
+    start_time = time.time()
     DATA_PATH_PREPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks/'
     DATA_PATH_POSTPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_normalized_zerocentered/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/luna/luna16/data/tensorboard_summaries/'
@@ -354,4 +362,5 @@ if __name__ == '__main__':
 
     #post_process()
     train_3d_nn()
-    print('all processing done')
+    end_time = time.time()
+    print("Total Time usage: " + str(timedelta(seconds=int(round(end_time - start_time)))))
