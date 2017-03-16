@@ -146,7 +146,7 @@ def zero_center(image):
 
 
 
-def train_3d_nn():
+def train_3d_nn(data_postprocessed = False):
 
     #### Helper function ####
     def predict_prob_validation(validation_x, labels, write_to_tensorboard=False):
@@ -191,16 +191,18 @@ def train_3d_nn():
 
     patient_ids = get_ids(DATA_PATH_PREPROCESS)
     X, Y = get_data(patient_ids[0:100], DATA_PATH_PREPROCESS) ## IMPORTANT: Remove bounds when traning on the whole
+
+
     #X = normalize(X)
     #X = zero_center(X)
+    # Tag to put in run identification
+    data_postprocessed = False
 
 
     print('Splitting into train, validation sets')
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y,
                                                                     test_size=0.20)
 
-    print(len(X))
-    print(len(Y))
     print('train_x: {}'.format(train_x.shape))
     print('validation_x: {}'.format(validation_x.shape))
     print('train_y: {}'.format(train_y.shape))
@@ -288,7 +290,8 @@ def train_3d_nn():
     start_timestamp = str(int(time.time()))
 
     # Name used to save all artifacts of run
-    run_name = 'type=train_timestamp=' + start_timestamp + '_batch=' + str(FLAGS.batch_size) + '_iterations=' + str(FLAGS.max_iterations) + '_model=' + model_name + '_train=' + str(train_x.shape[0]) + '_validation=' + str(validation_x.shape[0])
+    run_name = 'runType=train_timestamp={0:}_batchSize={1:}_maxIterations={2:}_modelName=\'{3:}\'_numTrain={4:}_numValidation={5:}_isPostprocess={6:}'
+    run_name = run_name.format(start_timestamp, FLAGS.batch_size, FLAGS.max_iterations, model_name, train_x.shape[0], validation_x.shape[0], data_postprocessed)
 
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES + run_name, sess.graph)
@@ -332,11 +335,11 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 32,
                                 """Number of items in a batch.""")
-    tf.app.flags.DEFINE_integer('max_iterations', 100, #100000
+    tf.app.flags.DEFINE_integer('max_iterations', 1000, #100000
                                 """Number of batches to run.""")
-    tf.app.flags.DEFINE_float('require_improvement', 0.20,
+    tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
-    tf.app.flags.DEFINE_float('iteration_analysis', 0.10,
+    tf.app.flags.DEFINE_float('iteration_analysis_percentage', 0.10,
                                 """Percent of max_iterations after which analysis will be done""")
 
     ## Tensorflow specific
