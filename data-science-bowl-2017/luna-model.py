@@ -146,7 +146,7 @@ def zero_center(image):
 
 
 
-def train_3d_nn(data_postprocessed = False):
+def train_3d_nn():
 
     #### Helper function ####
     def predict_prob_validation(validation_x, labels, write_to_tensorboard=False):
@@ -183,33 +183,24 @@ def train_3d_nn(data_postprocessed = False):
         # Divide by 2 (magic number)
         validation_log_loss = -1.0 * (temp[0,0] + temp[1,1])/(2 * n)
 
-        return validation_log_loss
-
+        return validation_log_loss     
+        
     #### Helper function ####
 
-
     time0 = time.time()
-    patient_ids = get_ids(DATA_PATH_PREPROCESS)
-    X, Y = get_data(patient_ids, DATA_PATH_PREPROCESS) ## IMPORTANT: Remove bounds when traning on the whole
-    end_time_load = time.time()
-    print("Total time to load data: " + str(timedelta(seconds=int(round(end_time_load - time0)))))
-
-    X = normalize(X)
-    end_time_load = time.time()
-    print("Total time to normalize: " + str(timedelta(seconds=int(round(end_time_load - time0)))))
-    X = zero_center(X)
-    # Tag to put in run identification
-    end_time_load = time.time()
-    print("Total time to zero center: " + str(timedelta(seconds=int(round(end_time_load - time0)))))
-    data_postprocessed = True
-
+    patient_ids = get_ids(DATA_PATH)[0:50]
+    X, Y = get_data(patient_ids, DATA_PATH)
+    print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
     print('Splitting into train, validation sets')
-    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y,
-                                                                    test_size=0.20)
+    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42,
+                                                                                   stratify=Y, test_size=0.20)
 
-    end_time_load = time.time()
-    print("Total time to split: " + str(timedelta(seconds=int(round(end_time_load - time0)))))
+    # Free up X and Y memory
+    del X
+    del Y
+    print("Total time to split: " + str(timedelta(seconds=int(round(time.time() - time0)))))
+    
     print('train_x: {}'.format(train_x.shape))
     print('validation_x: {}'.format(validation_x.shape))
     print('train_y: {}'.format(train_y.shape))
@@ -261,6 +252,7 @@ def train_3d_nn(data_postprocessed = False):
                                          num_outputs=512, name ='layer4_dense3d')
             print(layer4_dense3d_out)
 
+            # Save transfer_values = layer4_dense3d_out on prediction
             layer4_dropout3d_out = dropout_3d(layer4_dense3d_out, 0.5, 'layer4_dropout3d')
             print(layer4_dropout3d_out)
 
@@ -297,41 +289,45 @@ def train_3d_nn(data_postprocessed = False):
     start_timestamp = str(int(time.time()))
 
     # Name used to save all artifacts of run
-    run_name = 'runType=train_timestamp={0:}_batchSize={1:}_maxIterations={2:}_modelName=\'{3:}\'_numTrain={4:}_numValidation={5:}_isPostprocessed={6:}'
-    run_name = run_name.format(start_timestamp, FLAGS.batch_size, FLAGS.max_iterations, model_name, train_x.shape[0], validation_x.shape[0], data_postprocessed)
-
+    run_name = 'runType=train_timestamp={0:}_batchSize={1:}_maxIterations={2:}_modelName={3:}_numTrain={4:}_numValidation={5:}'
+    run_name = run_name.format(start_timestamp, FLAGS.batch_size, FLAGS.max_iterations,
+                               model_name, train_x.shape[0], validation_x.shape[0])
+    
+    print('run_name: {}'.format(run_name))
+    
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES + run_name, sess.graph)
         sess.run(tf.global_variables_initializer())
-
-        print('\nPre-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
+        
+        pre_train_log_loss = calc_validation_log_loss()
+        print('\nPre-train validation log loss: {0:.5}'.format(pre_train_log_loss))
 
         for i in tqdm(range(FLAGS.max_iterations)):
             x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size)
             _,step_summary, loss_val = sess.run([optimizer, merged, log_loss],
                                                 feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
-        print('\nPost-train validation log loss: {0:.5}'.format(calc_validation_log_loss()))
+        
+        post_train_log_loss = calc_validation_log_loss()
+        print('\nPost-train validation log loss: {0:.5}'.format(post_train_log_loss))
 
+        run_name = run_name + '_preTrainLogLoss={0:.5}_postTrainLogLoss={1:.5}'.format(pre_train_log_loss, post_train_log_loss)
+        
         # Saving model
         checkpoint_loc = os.path.join(MODELS, run_name)
         if not os.path.exists(checkpoint_loc):
             os.makedirs(checkpoint_loc)
-        save_path = os.path.join(checkpoint_loc, 'saved-model_'+ run_name)
+        save_path = os.path.join(checkpoint_loc, 'model_'+ run_name)
         saver.save(sess=sess, save_path=save_path)
 
         # Clossing session
         sess.close()
-    print('all artifacts associated with this are will have the following run_name: {}'.format(run_name))
 
-def post_process():
-    print("in post_process")
-
+        print('run_name: {}'.format(run_name))
 
 if __name__ == '__main__':
     start_time = time.time()
-    DATA_PATH_PREPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks/'
-    DATA_PATH_POSTPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_normalized_zerocentered/'
+    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_processed_chunks_nz/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/luna/luna16/data/tensorboard_summaries/'
     MODELS = '/kaggle_2/luna/luna16/models/'
 
@@ -343,7 +339,7 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 32,
                                 """Number of items in a batch.""")
-    tf.app.flags.DEFINE_integer('max_iterations', 1000, #100000
+    tf.app.flags.DEFINE_integer('max_iterations', 100,
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
