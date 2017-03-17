@@ -10,7 +10,6 @@ import os
 import glob
 import math
 import time
-import uuid
 from datetime import timedelta
 import matplotlib
 # Force matplotlib to not use any Xwindows backend, so that you can output graphs
@@ -22,53 +21,6 @@ from tqdm import tqdm
 
 # Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
 pd.options.mode.chained_assignment = None
-
-def variable_summaries(var):
-    # Attach a lot of summaries to a Tensor (for TensorBoard visualization).
-    with tf.name_scope('summaries'):
-        mean = tf.reduce_mean(var)
-        tf.summary.scalar('mean', mean)
-        with tf.name_scope('stddev'):
-            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
-        tf.summary.scalar('stddev', stddev)
-        tf.summary.scalar('max', tf.reduce_max(var))
-        tf.summary.scalar('min', tf.reduce_min(var))
-        tf.summary.histogram('histogram', var)
-
-def img_to_rgb(im):
-        n, x, y, z = im.shape
-        ret = np.empty((n, x, y, z, 1), dtype=np.float32)
-        ret[:, :, :, :, 0] = im
-        return ret
-
-def get_ids(PATH):
-    ids = []
-    for path in glob.glob(PATH + '[0-9\.]*_X.npy'):
-        patient_id = re.match(r'([0-9\.]*)_X.npy', os.path.basename(path)).group(1)
-        ids.append(patient_id)
-    return ids
-
-def get_data(patient_ids, PATH):
-    num_chunks = 0
-
-    for patient_id in patient_ids:
-        x = np.load(PATH + patient_id + '_X.npy')
-        num_chunks = num_chunks + x.shape[0]
-
-    X = np.ndarray([num_chunks, 64, 64, 64, 1], dtype=np.float32)
-    Y = np.ndarray([num_chunks, 7], dtype=np.float32)
-
-    count = 0
-    for patient_id in patient_ids:
-        x = np.load(PATH + patient_id + '_X.npy').astype(np.float32, copy=False)
-        y = np.load(PATH + patient_id + '_Y.npy').astype(np.float32, copy=False)
-
-        X[count : count + x.shape[0], :, :, :, :] = img_to_rgb(x)
-        Y[count : count + y.shape[0], :] = y
-
-        count = count + x.shape[0]
-
-    return X, Y
 
 def new_weights(shape):
     return tf.Variable(tf.truncated_normal(shape, stddev=0.05))
@@ -132,79 +84,43 @@ def get_batch(x, y, batch_size):
 
         return x_batch, y_batch
 
-def normalize(image):
-    MIN_BOUND = -1000.0
-    MAX_BOUND = 400.0
-    image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
-    image[image>1] = 1.
-    image[image<0] = 0.
-    return image
+def get_ids(PATH):
+    ids = []
+    for path in glob.glob(PATH + '[0-9\.]*_X.npy'):
+        patient_id = re.match(r'([0-9\.]*)_X.npy', os.path.basename(path)).group(1)
+        ids.append(patient_id)
+    return ids
 
-def zero_center(image):
-    PIXEL_MEAN = 0.25
-    image = image - PIXEL_MEAN
-    return image
+def img_to_rgb(im):
+    n, x, y, z = im.shape
+    ret = np.empty((n, x, y, z, 1), dtype=np.float32)
+    ret[:, :, :, :, 0] = im
+    return ret
 
-
-
-def train_3d_nn():
-    #### Helper function ####
-    def predict_prob_validation(validation_x, labels, write_to_tensorboard=False):
-        num_images = len(validation_x)
-
-        prob_pred = np.zeros(shape=[num_images, FLAGS.num_classes], dtype=np.float64)
-
-        i = 0
-        while i < num_images:
-            j = min(i + FLAGS.batch_size, num_images)
-            feed_dict = {x: validation_x[i:j],
-                         y_labels: labels[i:j]}
-
-            y_calc, step_summary = sess.run([y, merged], feed_dict=feed_dict)
-            prob_pred[i:j] = y_calc
-
-            if write_to_tensorboard:
-                validation_writer.add_summary(step_summary, i)
-            # Set the start-index for the next batch to the
-            # end-index of the current batch.
-            i = j
-        return prob_pred
-
-
-    def calc_validation_log_loss(write_to_tensorboard = False):
-        prob_pred = predict_prob_validation(validation_x,
-                                            labels = validation_y,
-                                            write_to_tensorboard = write_to_tensorboard)
-        p = np.maximum(np.minimum(prob_pred, 1-10e-15), 10e-15)
-        l = np.transpose(validation_y + 0.0)
-        n = validation_y.shape[0]
-        temp = np.matmul(l, np.log(p)) + np.matmul((1 - l), np.log(1 - p))
-
-        # Divide by 2 (magic number)
-        validation_log_loss = -1.0 * (temp[0,0] + temp[1,1])/(2 * n)
-
-        return validation_log_loss
+def predict_prob_test(X, sess):
+    num_chunks = len(X)
+    prob_pred = np.zeros(shape=[num_chunks, FLAGS.num_classes], dtype=np.float32)
+    transfer_values = np.zeros(shape=[num_chunks, 512], dtype=np.float32)
     
-    #### Helper function ####
+    i = 0
+    while i < num_chunks:
+        j = 1
+        feed_dict = {'x': X[i:j],
+                     'y_labels': np.zeros([j, FLAGS.num_classes], dtype=np.float32)}
 
+        y_calc, trans_value = sess.run([y, layer4_dense3d_out], feed_dict=feed_dict)
+        prob_pred[i:j] = y_calc
+        transfer_values[i:j] = trans_value
+        # Set the start-index for the next batch to the
+        # end-index of the current batch.
+        i = j
+    
+    return prob_pred, transfer_values
+    
+def predict_3d_nn():
     time0 = time.time()
-    patient_ids = get_ids(DATA_PATH)[0:50]
-    X, Y = get_data(patient_ids, DATA_PATH)
-    print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
-    print('Splitting into train, validation sets')
-    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42,
-                                                                                   stratify=Y, test_size=0.20)
-
-    # Free up X and Y memory
-    del X
-    del Y
-    print("Total time to split: " + str(timedelta(seconds=int(round(time.time() - time0)))))
-    
-    print('train_x: {}'.format(train_x.shape))
-    print('validation_x: {}'.format(validation_x.shape))
-    print('train_y: {}'.format(train_y.shape))
-    print('validation_y: {}'.format(validation_y.shape))
+    patient_ids = get_ids(DATA_PATH)
 
     # Graph construction
     graph = tf.Graph()
@@ -278,59 +194,49 @@ def train_3d_nn():
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
-
+    
     # Setting up config
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = FLAGS.allow_growth
     config.log_device_placement=FLAGS.log_device_placement
     config.allow_soft_placement=FLAGS.allow_soft_placement
-
-    # timestamp used to identify the start of run
-    start_timestamp = str(int(time.time()))
-
-    model_id = str(uuid.uuid4())
-    
-    # Name used to save all artifacts of run
-    run_name = 'runType=train_timestamp={0:}_batchSize={1:}_maxIterations={2:}_numTrain={4:}_numValidation={5:}_modelName={3:}_modelId={6:}'
-    run_name = run_name.format(start_timestamp, FLAGS.batch_size, FLAGS.max_iterations,
-                               model_name, train_x.shape[0], validation_x.shape[0], model_id)
-    
-    print('Run_name: {}'.format(run_name))
     
     with tf.Session(graph=graph, config=config) as sess:
-        train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES + run_name, sess.graph)
         sess.run(tf.global_variables_initializer())
+        saver = tf.train.import_meta_graph(MODEL_PATH + '/model.meta')
+        saver.restore(sess, tf.train.latest_checkpoint(MODEL_PATH))
         
-        pre_train_log_loss = calc_validation_log_loss()
-        print('\nPre-train validation log loss: {0:.5}'.format(pre_train_log_loss))
+        for patient_id in patient_ids[0:50]:
+            x_in = np.load(DATA_PATH + patient_id + '_X.npy').astype(np.float32, copy=False)
 
-        for i in tqdm(range(FLAGS.max_iterations)):
-            x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size)
-            _,step_summary, loss_val = sess.run([optimizer, merged, log_loss],
-                                                feed_dict={x: x_batch, y_labels: y_batch})
-            train_writer.add_summary(step_summary, i)
-        
-        post_train_log_loss = calc_validation_log_loss()
-        print('\nPost-train validation log loss: {0:.5}'.format(post_train_log_loss))
+            X = np.ndarray([x_in.shape[0], 64, 64, 64, 1], dtype=np.float32)
+            X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
+            
+            print('\nPatient id: ' + patient_id)
+            print('X: {}'.format(X.shape))
+            print(x.shape)
+            print(y_labels)
+            
+            feed_dict = {x: X,
+                         y_labels: np.zeros([x_in.shape[0], FLAGS.num_classes], dtype=np.float32)}
 
-        run_name = run_name + '_preTrainLogLoss={0:.5}_postTrainLogLoss={1:.5}'.format(pre_train_log_loss, post_train_log_loss)
-               
-        print('Model id: {}'.format(model_id))
-        # Saving model
-        checkpoint_folder = os.path.join(MODELS, model_id)
-        if not os.path.exists(checkpoint_folder):
-            os.makedirs(checkpoint_folder)
-        save_path = os.path.join(checkpoint_folder, 'model')
-        saver.save(sess=sess, save_path=save_path)
+            predictions, transfer_values = sess.run([y, layer4_dense3d_out], feed_dict=feed_dict)
 
-        # Clossing session
-        sess.close()
+            print('predictions: ' + str(predictions.shape))
+            print('transfer_values: ' + str(transfer_values.shape))
 
+            np.save(OUTPUT_FOLDER + patient_id + '_predictions.npy', predictions)
+            np.save(OUTPUT_FOLDER + patient_id + '_transfer_values.npy', transfer_values)
+
+    sess.close()
+    
 if __name__ == '__main__':
     start_time = time.time()
     DATA_PATH = '/kaggle_2/luna/luna16/data/pre_processed_chunks_nz/'
+    OUTPUT_FOLDER = '/kaggle_2/luna/luna16/data/features/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/luna/luna16/data/tensorboard_summaries/'
     MODELS = '/kaggle_2/luna/luna16/models/'
+    MODEL_PATH = '/kaggle_2/luna/luna16/models/99309d2f-9916-4fab-8e2e-453880e7a061/'
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
@@ -340,8 +246,6 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 32,
                                 """Number of items in a batch.""")
-    tf.app.flags.DEFINE_integer('max_iterations', 100,
-                                """Number of batches to run.""")
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
     tf.app.flags.DEFINE_float('iteration_analysis_percentage', 0.10,
@@ -357,7 +261,6 @@ if __name__ == '__main__':
     tf.app.flags.DEFINE_boolean('allow_growth', True,
                                 """Whether to allow GPU growth by tf.""")
 
-    #post_process()
-    train_3d_nn()
+    predict_3d_nn()
     end_time = time.time()
     print("Total Time usage: " + str(timedelta(seconds=int(round(end_time - start_time)))))
