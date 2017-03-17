@@ -44,7 +44,7 @@ def chunk_nz():
     PATIENT_SCANS = 'scan_segmented_lungs_fill_'
     CHUNK_SIZE = 64
     NUM_CLASSES = 7
-    OVERLAP_PERCENTAGE = 0.5
+    OVERLAP_PERCENTAGE = 0.3
 
 
     completed_patients = []
