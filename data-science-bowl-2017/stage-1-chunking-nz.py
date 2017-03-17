@@ -48,7 +48,7 @@ def chunk_nz():
 
 
     completed_patients = []
-    for patients in glob.glob(OUTPUT_FOLDER_ORIGINAL + '*_X.npy'):
+    for patients in glob.glob(OUTPUT_FOLDER_NZ + '*_X.npy'):
         n = re.match('([a-f0-9].*)_X.npy', os.path.basename(patients))
         completed_patients.append(n.group(1))
 
