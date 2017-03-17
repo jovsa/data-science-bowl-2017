@@ -213,9 +213,6 @@ def predict_3d_nn():
             X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
             
             print('\nPatient id: ' + patient_id)
-            print('X: {}'.format(X.shape))
-            print(x.shape)
-            print(y_labels)
             
             feed_dict = {x: X,
                          y_labels: np.zeros([x_in.shape[0], FLAGS.num_classes], dtype=np.float32)}

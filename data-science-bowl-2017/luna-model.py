@@ -188,7 +188,7 @@ def train_3d_nn():
     #### Helper function ####
 
     time0 = time.time()
-    patient_ids = get_ids(DATA_PATH)[0:50]
+    patient_ids = get_ids(DATA_PATH)
     X, Y = get_data(patient_ids, DATA_PATH)
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
@@ -314,7 +314,9 @@ def train_3d_nn():
         print('\nPost-train validation log loss: {0:.5}'.format(post_train_log_loss))
 
         run_name = run_name + '_preTrainLogLoss={0:.5}_postTrainLogLoss={1:.5}'.format(pre_train_log_loss, post_train_log_loss)
-               
+        
+        ## TODO: Save pre-train/post-train log loss with model (name/id)
+        
         print('Model id: {}'.format(model_id))
         # Saving model
         checkpoint_folder = os.path.join(MODELS, model_id)
@@ -340,7 +342,7 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 32,
                                 """Number of items in a batch.""")
-    tf.app.flags.DEFINE_integer('max_iterations', 100,
+    tf.app.flags.DEFINE_integer('max_iterations', 60000,
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
