@@ -54,14 +54,13 @@ def chunk_nz():
 
     for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
         m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
-        scans = np.load(DATA_PATH + m.group(0))
         patient_uid = m.group(1)
 
         if patient_uid in completed_patients:
             print('Skipping already processed patient {}'.format(patient_uid))
             continue
 
-
+        scans = np.load(DATA_PATH + m.group(0))
         chunk_counter = 1
         step_size = int((CHUNK_SIZE*(1-OVERLAP_PERCENTAGE)))
         num_chunks_0 = int((scans.shape[0])/(step_size)) + 1
@@ -103,24 +102,21 @@ def chunk_nz():
             start_index_0 += step_size
 
         X = np.ndarray([len(chunk_list), CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE], dtype=np.int16)
-        Y = np.zeros([len(chunk_list), NUM_CLASSES], dtype=np.int16)
         for m in range(0,len(chunk_list)):
             X[m,:,:] = chunk_list[m]
 
-        np.save(OUTPUT_FOLDER_ORIGINAL + patient_uid + '_X.npy', X)
-        np.save(OUTPUT_FOLDER_ORIGINAL + patient_uid + '_Y.npy', Y)
+        # np.save(OUTPUT_FOLDER_ORIGINAL + patient_uid + '_X.npy', X)
 
         print('processed patient:', patient_uid  , '_original shape:', scans.shape )
-        print('_num_chunks:', len(chunk_list), '_X.shape:', X.shape, '_Y.shape:', Y.shape)
+        print('_num_chunks:', len(chunk_list), '_X.shape:', X.shape, 'X.dtype: ', X.dtype, '_X[0]: ', X[0])
 
         # Normalizing and Zero Centering
         X_nz = normalize(X)
         X_nz = zero_center(X_nz)
         np.save(OUTPUT_FOLDER_NZ + patient_uid + '_X.npy', X_nz)
-        np.save(OUTPUT_FOLDER_NZ + patient_uid + '_Y.npy', Y)
 
         # Clearning memory
-        del X,Y,X_nz
+        del X,X_nz
 
 
 
