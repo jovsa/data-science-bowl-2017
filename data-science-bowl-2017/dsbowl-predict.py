@@ -11,6 +11,7 @@ from datetime import timedelta
 import sys
 import datetime
 import tensorflow as tf
+import math
 
 # Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
 pd.options.mode.chained_assignment = None
@@ -246,17 +247,29 @@ def predict_features():
                 #print('Skipping already processed patient {}'.format(patient_uid))
                 continue
 
-            #print('Processing patient {}'.format(patient_uid))
-            x_in = get_patient_data_chunks(patient_uid)      
+            # print('Processing patient {}'.format(patient_uid))
+            x_in = get_patient_data_chunks(patient_uid)   
             X = np.ndarray([x_in.shape[0], 64, 64, 64, 1], dtype=np.float32)
             X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
             
-            feed_dict = {x: X,
-                         y_labels: np.zeros([x_in.shape[0], FLAGS.num_classes], dtype=np.float32)}
+            # print('X: {}'.format(X.shape))
+            predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
+            transfer_values = np.ndarray([X.shape[0], 512], dtype=np.float32)
             
-            predictions, transfer_values = sess.run([y, layer4_dense3d_out], feed_dict=feed_dict)
-            #print('predictions: ' + str(predictions.shape))
-            #print('transfer_values: ' + str(transfer_values.shape))
+            num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
+            for i in range(0, num_batches):
+                batch_start = i * FLAGS.batch_size
+                batch_end = batch_start + FLAGS.batch_size
+                batch_end = X.shape[0] if (batch_end > X.shape[0]) else batch_end
+                feed_dict = {x: X[batch_start : batch_end],
+                             y_labels: np.zeros([batch_end - batch_start, FLAGS.num_classes], dtype=np.float32)}
+
+                # print('X[{}]: {}'.format(i, X[batch_start:batch_end].shape))
+                pred, trans_val = sess.run([y, layer4_dense3d_out], feed_dict=feed_dict)
+                predictions[batch_start: batch_end, :] = pred
+                transfer_values[batch_start: batch_end, :] = trans_val
+                #print('predictions: ' + str(predictions.shape))
+                #print('transfer_values: ' + str(transfer_values.shape))
 
             np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
             np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
@@ -283,7 +296,7 @@ if __name__ == '__main__':
     ## Prediction problem specific
     tf.app.flags.DEFINE_integer('num_classes', 7,
                                 """Number of classes to predict.""")
-    tf.app.flags.DEFINE_integer('batch_size', 32,
+    tf.app.flags.DEFINE_integer('batch_size', 600,
                                 """Number of items in a batch.""")
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
