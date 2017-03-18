@@ -13,6 +13,7 @@ import datetime
 import tensorflow as tf
 import math
 from sklearn import cross_validation
+import xgboost as xgb
 
 
 
@@ -20,44 +21,52 @@ def get_inputs():
     num_chunks = 0
 
     inputs = {}
-    for features in glob.glob(DATA_PATH + '*_transfer_values.npy')[0:10]:
+    labels = pd.read_csv(LABELS)
+    input_features = {}
+
+    for features in glob.glob(DATA_PATH + '*_transfer_values.npy'):
         n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(features))
         patient_id = n.group(1)
         predictions = np.load(DATA_PATH + patient_id + '_predictions.npy')
         transfer_values = np.load(DATA_PATH + patient_id + '_transfer_values.npy')
-        inputs[patient_id] = [predictions,transfer_values]
+        feature_val = np.append(predictions, transfer_values)
+        #print('patient_id', patient_id)
+        try:
+            label_val = int(labels.loc[labels['id'] == patient_id, 'cancer'])
+        except TypeError:
+            continue
+        #print('label_val', label_val)
+        input_features[patient_id] = [feature_val, label_val]
         print('Patient {} predictions {} transfer_values {}'.format(patient_id, predictions.shape, transfer_values.shape))
 
-    labels = pd.read_csv(LABELS)
-    input_features = {}
-    for key in inputs:
-        inputs[key][0] = np.mean(inputs[key][0], axis=0)
-        inputs[key][1] = np.mean(inputs[key][1], axis=0)
-        feature_val = np.append(inputs[key][0], inputs[key][1])
-        label_val = labels.loc[labels['id'] == key,'cancer']
-        input_features[key] = [feature_val, label_val]
-        feature_val_length = feature_val.shape[0]
-        label_val_length = label_val.shape[0]
+    return input_features
 
-    input_features = pd.DataFrame.from_dict(data= input_features.items())
-    return feature_val_length, label_val_length,  input_features
+def train_xgboost(trn_x, val_x, trn_y, val_y):
+    clf = xgb.XGBRegressor(max_depth=10,
+                           gamma=0.5,
+                           objective="binary:logistic",
+                           n_estimators=1500,
+                           min_child_weight=6,
+                           learning_rate=0.005,
+                           nthread=8,
+                           subsample=0.80,
+                           colsample_bytree=0.80,
+                           seed=79,
+                           max_delta_step=1,
+                           reg_alpha=0.1,
+                           reg_lambda=0.05)
 
+    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
+    return clf
 
 def make_submission():
-    num_features, num_labels, inputs = get_inputs()
-    print(list(inputs.columns.values))
+    inputs = get_inputs()
+    x = np.array([inputs[keys][0] for keys in inputs.keys()])
+    y = np.array([inputs[keys][1] for keys in inputs.keys()])
 
 
-    # x = np.zeros(len(inputs.keys()), num_features)
-    # y = np.zeros(len(inputs.keys()), num_labels
-
-    # for keys in inputs:
-    #     # temp = inputs[keys][1]
-    #     # print("temp:", temp)
-    #     print(inputs[keys])
-
-    #trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
-
+    trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
+    clf = train_xgboost(trn_x, val_x, trn_y, val_y)
 
 
 if __name__ == '__main__':
