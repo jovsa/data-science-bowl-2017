@@ -62,11 +62,15 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
 def make_submission():
     inputs = get_inputs()
     x = np.array([inputs[keys][0] for keys in inputs.keys()])
+    x = x.reshape(-1,1)
     y = np.array([inputs[keys][1] for keys in inputs.keys()])
+    y = (np.arange(2) == y[:,None])+0
 
 
+    print(x.shape)
+    print(y.shape)
     trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
-    clf = train_xgboost(trn_x, val_x, trn_y, val_y)
+    #clf = train_xgboost(trn_x, val_x, trn_y, val_y)
 
 
 if __name__ == '__main__':
