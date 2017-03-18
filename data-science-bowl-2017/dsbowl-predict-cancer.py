@@ -12,36 +12,57 @@ import sys
 import datetime
 import tensorflow as tf
 import math
+from sklearn import cross_validation
 
-def variable_summaries(var):
-    # Attach a lot of summaries to a Tensor (for TensorBoard visualization).
-    with tf.name_scope('summaries'):
-        mean = tf.reduce_mean(var)
-        tf.summary.scalar('mean', mean)
-        with tf.name_scope('stddev'):
-            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
-        tf.summary.scalar('stddev', stddev)
-        tf.summary.scalar('max', tf.reduce_max(var))
-        tf.summary.scalar('min', tf.reduce_min(var))
-        tf.summary.histogram('histogram', var)
 
-def train_nn():
+
+def get_inputs():
     num_chunks = 0
-    
-    for features in glob.glob(DATA_PATH + '*_transfer_values.npy'):
+
+    inputs = {}
+    for features in glob.glob(DATA_PATH + '*_transfer_values.npy')[0:10]:
         n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(features))
         patient_id = n.group(1)
         predictions = np.load(DATA_PATH + patient_id + '_predictions.npy')
         transfer_values = np.load(DATA_PATH + patient_id + '_transfer_values.npy')
+        inputs[patient_id] = [predictions,transfer_values]
         print('Patient {} predictions {} transfer_values {}'.format(patient_id, predictions.shape, transfer_values.shape))
 
-               
+    labels = pd.read_csv(LABELS)
+    input_features = {}
+    for key in inputs:
+        inputs[key][0] = np.mean(inputs[key][0], axis=0)
+        inputs[key][1] = np.mean(inputs[key][1], axis=0)
+        feature_val = np.append(inputs[key][0], inputs[key][1])
+        label_val = labels.loc[labels['id'] == key,'cancer']
+        input_features[key] = [feature_val, label_val]
+        feature_val_length = feature_val.shape[0]
+        label_val_length = label_val.shape[0]
+
+    input_features = pd.DataFrame.from_dict(data= input_features.items())
+    return feature_val_length, label_val_length,  input_features
+
+
 def make_submission():
-    train_nn()
-    
+    num_features, num_labels, inputs = get_inputs()
+    print(list(inputs.columns.values))
+
+
+    # x = np.zeros(len(inputs.keys()), num_features)
+    # y = np.zeros(len(inputs.keys()), num_labels
+
+    # for keys in inputs:
+    #     # temp = inputs[keys][1]
+    #     # print("temp:", temp)
+    #     print(inputs[keys])
+
+    #trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
+
+
+
 if __name__ == '__main__':
     start_time = time.time()
-   
+
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
     DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features/'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
@@ -51,8 +72,8 @@ if __name__ == '__main__':
     STAGE1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
-    NAIVE_SUBMISSION = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'  
-    
+    NAIVE_SUBMISSION = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
+
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
 
@@ -75,7 +96,7 @@ if __name__ == '__main__':
                                 """Whether to allow soft placement of calculations by tf.""")
     tf.app.flags.DEFINE_boolean('allow_growth', True,
                                 """Whether to allow GPU growth by tf.""")
-    
+
     make_submission()
     end_time = time.time()
     print("Total Time usage: " + str(timedelta(seconds=int(round(end_time - start_time)))))
