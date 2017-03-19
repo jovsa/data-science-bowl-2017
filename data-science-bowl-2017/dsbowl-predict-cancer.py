@@ -14,6 +14,7 @@ import tensorflow as tf
 import math
 from sklearn import cross_validation
 import xgboost as xgb
+from sklearn.ensemble import RandomForestClassifier as RF
 
 
 
@@ -50,7 +51,6 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
                            max_delta_step=1,
                            reg_alpha=0.1,
                            reg_lambda=0.5)
-
     clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
     return clf
 
