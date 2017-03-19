@@ -18,17 +18,14 @@ import xgboost as xgb
 
 
 def get_inputs():
-    num_chunks = 0
-
-    inputs = {}
     labels = pd.read_csv(LABELS)
     input_features = {}
 
-    for features in glob.glob(DATA_PATH + '*_transfer_values.npy')[0:10]:
+    for features in glob.glob(DATA_PATH + '*_transfer_values.npy'):
         n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(features))
         patient_id = n.group(1)
-        predictions = np.load(DATA_PATH + patient_id + '_predictions.npy')
-        transfer_values = np.load(DATA_PATH + patient_id + '_transfer_values.npy')
+        predictions = np.array([np.mean(np.load(DATA_PATH + patient_id + '_predictions.npy'), axis=0)])
+        transfer_values = np.array([np.mean(np.load(DATA_PATH + patient_id + '_transfer_values.npy'), axis=0)])
         feature_val = np.append(predictions, transfer_values)
         try:
             label_val = int(labels.loc[labels['id'] == patient_id, 'cancer'])
@@ -52,7 +49,7 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
                            seed=79,
                            max_delta_step=1,
                            reg_alpha=0.1,
-                           reg_lambda=0.05)
+                           reg_lambda=0.5)
 
     clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
     return clf
@@ -61,13 +58,10 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
 def make_submission():
     inputs = get_inputs()
 
+    x = np.array([inputs[keys][0]for keys in inputs.keys()])
+    y = np.array([inputs[keys][1] for keys in inputs.keys()])
 
-    print(x.dtype)
-    print(y.dtype)
     trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
-
-    print(type(trn_x), type(val_x), type(trn_y), type(val_y))
-    print((trn_x).shape, (val_x).shape, (trn_y).shape, (val_y).shape)
     clf = train_xgboost(trn_x, val_x, trn_y, val_y)
 
 
