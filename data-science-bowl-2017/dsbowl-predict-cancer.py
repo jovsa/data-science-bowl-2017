@@ -24,18 +24,16 @@ def get_inputs():
     labels = pd.read_csv(LABELS)
     input_features = {}
 
-    for features in glob.glob(DATA_PATH + '*_transfer_values.npy'):
+    for features in glob.glob(DATA_PATH + '*_transfer_values.npy')[0:10]:
         n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(features))
         patient_id = n.group(1)
         predictions = np.load(DATA_PATH + patient_id + '_predictions.npy')
         transfer_values = np.load(DATA_PATH + patient_id + '_transfer_values.npy')
         feature_val = np.append(predictions, transfer_values)
-        #print('patient_id', patient_id)
         try:
             label_val = int(labels.loc[labels['id'] == patient_id, 'cancer'])
         except TypeError:
             continue
-        #print('label_val', label_val)
         input_features[patient_id] = [feature_val, label_val]
         print('Patient {} predictions {} transfer_values {}'.format(patient_id, predictions.shape, transfer_values.shape))
 
@@ -59,18 +57,18 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
     clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
     return clf
 
+
 def make_submission():
     inputs = get_inputs()
-    x = np.array([inputs[keys][0] for keys in inputs.keys()])
-    x = x.reshape(-1,1)
-    y = np.array([inputs[keys][1] for keys in inputs.keys()])
-    y = (np.arange(2) == y[:,None])+0
 
 
-    print(x.shape)
-    print(y.shape)
+    print(x.dtype)
+    print(y.dtype)
     trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
-    #clf = train_xgboost(trn_x, val_x, trn_y, val_y)
+
+    print(type(trn_x), type(val_x), type(trn_y), type(val_y))
+    print((trn_x).shape, (val_x).shape, (trn_y).shape, (val_y).shape)
+    clf = train_xgboost(trn_x, val_x, trn_y, val_y)
 
 
 if __name__ == '__main__':
