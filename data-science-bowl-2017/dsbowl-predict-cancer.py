@@ -15,8 +15,14 @@ import math
 from sklearn import cross_validation
 import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier as RF
+import scipy as sp
+from sklearn.decomposition import PCA
 
-
+def perform_PCA(input_image):
+    n_components = 1000
+    pca = PCA(n_components=n_components, svd_solver='randomized', whiten=True).fit(input_image)
+    patient_data_pca = pca.transform(input_image)
+    return patient_data_pca
 
 def get_inputs():
     labels = pd.read_csv(LABELS)
@@ -26,8 +32,15 @@ def get_inputs():
         n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(features))
         patient_id = n.group(1)
         predictions = np.array([np.mean(np.load(DATA_PATH + patient_id + '_predictions.npy'), axis=0)])
-        transfer_values = np.array([np.mean(np.load(DATA_PATH + patient_id + '_transfer_values.npy'), axis=0)])
-        feature_val = np.append(predictions, transfer_values)
+        transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
+        print("original:", transfer_values.shape)
+        transfer_values = np.transpose(transfer_values)
+        print("after transpose:", transfer_values.shape)
+        #transfer_values = sp.misc.imresize(transfer_values, (100, 512))
+        transfer_values = perform_PCA(transfer_values)
+        print("final:", transfer_values.shape)
+        transfer_values = transfer_values.flatten()
+        feature_val = transfer_values
         try:
             label_val = int(labels.loc[labels['id'] == patient_id, 'cancer'])
         except TypeError:
@@ -63,6 +76,8 @@ def make_submission():
 
     trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
     clf = train_xgboost(trn_x, val_x, trn_y, val_y)
+
+
 
 
 if __name__ == '__main__':
