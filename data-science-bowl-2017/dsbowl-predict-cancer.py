@@ -17,6 +17,7 @@ import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier as RF
 import scipy as sp
 from sklearn.decomposition import PCA
+import sklearn.metrics
 
 def perform_PCA(input_image):
     n_components = 1000
@@ -33,12 +34,7 @@ def get_inputs():
         patient_id = n.group(1)
         predictions = np.array([np.mean(np.load(DATA_PATH + patient_id + '_predictions.npy'), axis=0)])
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
-        print("original:", transfer_values.shape)
-        transfer_values = np.transpose(transfer_values)
-        print("after transpose:", transfer_values.shape)
-        #transfer_values = sp.misc.imresize(transfer_values, (100, 512))
-        transfer_values = perform_PCA(transfer_values)
-        print("final:", transfer_values.shape)
+        transfer_values = sp.misc.imresize(transfer_values, (100, 100))
         transfer_values = transfer_values.flatten()
         feature_val = transfer_values
         try:
@@ -51,6 +47,7 @@ def get_inputs():
     return input_features
 
 def train_xgboost(trn_x, val_x, trn_y, val_y):
+
     clf = xgb.XGBRegressor(max_depth=10,
                            gamma=0.5,
                            objective="binary:logistic",
@@ -76,7 +73,10 @@ def make_submission():
 
     trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
     clf = train_xgboost(trn_x, val_x, trn_y, val_y)
+    val_y_pred = clf.predict(val_x)
 
+    for i in range(val_y.shape[0]):
+        print("val_y:", val_y[i], "val_y_pred:",val_y_pred[i])
 
 
 
