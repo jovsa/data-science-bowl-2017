@@ -280,31 +280,112 @@ def train_3d_nn():
             with tf.name_scope('accuracy'):
                 correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_labels, 1))
                 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-                #accuracy = tf.metrics.accuracy(y_labels, y)
                 tf.summary.scalar('accuracy', accuracy)
-            
-            #with tf.name_scope('sparse_softmax_cross_entropy_with_logits'):
-            #    sparse_softmax_cross_entropy_with_logits = tf.nn.sparse_softmax_cross_entropy_with_logits(y_labels, layer6_dense3d_out)
-            #    tf.summary.scalar('sparse_softmax_cross_entropy_with_logits', sparse_softmax_cross_entropy_with_logits)
-            
+                        
             with tf.name_scope('weighted_log_loss'): 
                 weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15)
                 tf.summary.scalar('weighted_log_loss', weighted_log_loss)
+            
+            # Metrics calculations
+            y_pred_class = tf.argmax(y, 1)
+            y_labels_class = tf.argmax(y_labels, 1)
+            
+            confusion_matrix = tf.confusion_matrix(y_labels_class, y_pred_class)
+            
+            sum_row_0 = tf.reduce_sum(confusion_matrix[0, :])
+            sum_row_1 = tf.reduce_sum(confusion_matrix[1, :])
+            sum_row_2 = tf.reduce_sum(confusion_matrix[2, :])
+            sum_row_3 = tf.reduce_sum(confusion_matrix[3, :])
+            sum_row_4 = tf.reduce_sum(confusion_matrix[4, :])
+            sum_row_5 = tf.reduce_sum(confusion_matrix[5, :])
+            sum_row_6 = tf.reduce_sum(confusion_matrix[6, :])
+            
+            sum_col_0 = tf.reduce_sum(confusion_matrix[:, 0])
+            sum_col_1 = tf.reduce_sum(confusion_matrix[:, 1])
+            sum_col_2 = tf.reduce_sum(confusion_matrix[:, 2])
+            sum_col_3 = tf.reduce_sum(confusion_matrix[:, 3])
+            sum_col_4 = tf.reduce_sum(confusion_matrix[:, 4])
+            sum_col_5 = tf.reduce_sum(confusion_matrix[:, 5])
+            sum_col_6 = tf.reduce_sum(confusion_matrix[:, 6])
+            
+            sum_all = tf.reduce_sum(confusion_matrix[:, :])
+            
+            with tf.name_scope('precision'):
+                precision_0 = confusion_matrix[0,0] / sum_col_0
+                precision_1 = confusion_matrix[1,1] / sum_col_1
+                precision_2 = confusion_matrix[2,2] / sum_col_2
+                precision_3 = confusion_matrix[3,3] / sum_col_3
+                precision_4 = confusion_matrix[4,4] / sum_col_4
+                precision_5 = confusion_matrix[5,5] / sum_col_5
+                precision_6 = confusion_matrix[6,6] / sum_col_6
+                tf.summary.scalar('precision_0', precision_0)
+                tf.summary.scalar('precision_1', precision_1)
+                tf.summary.scalar('precision_2', precision_2)
+                tf.summary.scalar('precision_3', precision_3)
+                tf.summary.scalar('precision_4', precision_4)
+                tf.summary.scalar('precision_5', precision_5)
+                tf.summary.scalar('precision_6', precision_6)
+            
+            with tf.name_scope('recall'):                
+                recall_0 = confusion_matrix[0,0] / sum_row_0
+                recall_1 = confusion_matrix[1,1] / sum_row_1
+                recall_2 = confusion_matrix[2,2] / sum_row_2
+                recall_3 = confusion_matrix[3,3] / sum_row_3
+                recall_4 = confusion_matrix[4,4] / sum_row_4
+                recall_5 = confusion_matrix[5,5] / sum_row_5
+                recall_6 = confusion_matrix[6,6] / sum_row_6
+                tf.summary.scalar('recall_0', recall_0)
+                tf.summary.scalar('recall_1', recall_1)
+                tf.summary.scalar('recall_2', recall_2)
+                tf.summary.scalar('recall_3', recall_3)
+                tf.summary.scalar('recall_4', recall_4)
+                tf.summary.scalar('recall_5', recall_5)
+                tf.summary.scalar('recall_6', recall_6)
+            
+            with tf.name_scope('specificity'):
+                tn_0 = sum_all - (sum_row_0 + sum_col_0 - confusion_matrix[0,0])
+                fp_0 = sum_col_0 - confusion_matrix[0,0]
+                specificity_0 = tn_0 / (tn_0 + fp_0)
                 
-            #with tf.name_scope('precision'):
-            #    y_pred_class = tf.argmax(y, 1)
-            #    y_labels_class = tf.argmax(y_labels, 1)
-                #correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_labels, 1))
-                #precision = tf.metrics.true_positives(y_labels_class, y_pred_class) / (
-            #    precision = tf.metrics.precision(y_labels_class, y_pred_class)
-            #    tf.summary.scalar('precision', precision)
-            
-            #with tf.name_scope('recall'):
-            #    recall = tf.metrics.recall(y_labels, y)
-            #    tf.summary.scalar('recall', recall)       
-            
+                tn_1 = sum_all - (sum_row_1 + sum_col_1 - confusion_matrix[1,1])
+                fp_1 = sum_col_1 - confusion_matrix[1,1]
+                specificity_1 = tn_1 / (tn_1 + fp_1)
+                
+                tn_2 = sum_all - (sum_row_2 + sum_col_2 - confusion_matrix[2,2])
+                fp_2 = sum_col_2 - confusion_matrix[2,2]
+                specificity_2 = tn_2 / (tn_2 + fp_2)
+                
+                tn_3 = sum_all - (sum_row_3 + sum_col_3 - confusion_matrix[3,3])
+                fp_3 = sum_col_3 - confusion_matrix[3,3]
+                specificity_3 = tn_3 / (tn_3 + fp_3)
+                
+                tn_4 = sum_all - (sum_row_4 + sum_col_4 - confusion_matrix[4,4])
+                fp_4 = sum_col_4 - confusion_matrix[4,4]
+                specificity_4 = tn_4 / (tn_4 + fp_4)
+                
+                tn_5 = sum_all - (sum_row_5 + sum_col_5 - confusion_matrix[5,5])
+                fp_5 = sum_col_5 - confusion_matrix[5,5]
+                specificity_5 = tn_5 / (tn_5 + fp_5)
+                
+                tn_6 = sum_all - (sum_row_6 + sum_col_6 - confusion_matrix[6,6])
+                fp_6 = sum_col_6 - confusion_matrix[6,6]
+                specificity_6 = tn_6 / (tn_6 + fp_6)
+                
+                tf.summary.scalar('specificity_0', specificity_0)
+                tf.summary.scalar('specificity_1', specificity_1)
+                tf.summary.scalar('specificity_2', specificity_2)
+                tf.summary.scalar('specificity_3', specificity_3)
+                tf.summary.scalar('specificity_4', specificity_4)
+                tf.summary.scalar('specificity_5', specificity_5)
+                tf.summary.scalar('specificity_6', specificity_6)
+                
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(weighted_log_loss)
+    
+            #with tf.name_scope('sparse_softmax_cross_entropy_with_logits'):
+            #    sparse_softmax_cross_entropy_with_logits = tf.nn.sparse_softmax_cross_entropy_with_logits(y_labels, layer6_dense3d_out)
+            #    tf.summary.scalar('sparse_softmax_cross_entropy_with_logits', sparse_softmax_cross_entropy_with_logits)
 
+            
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
 
@@ -328,8 +409,7 @@ def train_3d_nn():
     
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES + run_name, sess.graph)
-        sess.run(tf.global_variables_initializer())
-        
+        sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
         pre_train_log_loss, pre_train_acc, pre_train_prec, pre_train_rec = calc_validation_metrics()
         print('\nPre-train validation log loss scikit: {0:.5}'.format(pre_train_log_loss))
         print('Pre-train validation accuracy: {0:.5}'.format(pre_train_acc))
@@ -338,10 +418,10 @@ def train_3d_nn():
         
         for i in tqdm(range(FLAGS.max_iterations)):
             x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size)
-            _, step_summary, loss_val, custom_loss_val = sess.run([optimizer, merged, log_loss, weighted_log_loss],
+            _, step_summary = sess.run([optimizer, merged],
                                                 feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
-        
+            
         post_train_log_loss, post_train_acc, post_train_prec, post_train_rec = calc_validation_metrics()
         print('\nPost-train validation log loss scikit: {0:.5}'.format(post_train_log_loss))
         print('Post-train validation accuracy: {0:.5}'.format(post_train_acc))
