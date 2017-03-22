@@ -15,7 +15,7 @@ from datetime import timedelta
 import matplotlib
 # Force matplotlib to not use any Xwindows backend, so that you can output graphs
 matplotlib.use('Agg')
-from sklearn import model_selection
+from sklearn import model_selection, metrics
 from matplotlib import pyplot as plt
 import tensorflow as tf
 from tqdm import tqdm
@@ -62,7 +62,6 @@ def get_data(patient_ids, PATH):
     for patient_id in patient_ids:
         x = np.load(PATH + patient_id + '_X.npy').astype(np.float32, copy=False)
         y = np.load(PATH + patient_id + '_Y.npy').astype(np.float32, copy=False)
-
         X[count : count + x.shape[0], :, :, :, :] = img_to_rgb(x)
         Y[count : count + y.shape[0], :] = y
 
@@ -145,8 +144,6 @@ def zero_center(image):
     image = image - PIXEL_MEAN
     return image
 
-
-
 def train_3d_nn():
     #### Helper function ####
     def predict_prob_validation(validation_x, labels, write_to_tensorboard=False):
@@ -171,19 +168,19 @@ def train_3d_nn():
         return prob_pred
 
 
-    def calc_validation_log_loss(write_to_tensorboard = False):
+    def calc_validation_metrics(write_to_tensorboard = False):
         prob_pred = predict_prob_validation(validation_x,
                                             labels = validation_y,
                                             write_to_tensorboard = write_to_tensorboard)
-        p = np.maximum(np.minimum(prob_pred, 1-10e-15), 10e-15)
-        l = np.transpose(validation_y + 0.0)
-        n = validation_y.shape[0]
-        temp = np.matmul(l, np.log(p)) + np.matmul((1 - l), np.log(1 - p))
+        
+        y_t, y_p = np.argmax(validation_y, axis = 1), np.argmax(prob_pred, axis = 1)
+               
+        sk_log_loss = metrics.log_loss(validation_y, prob_pred)       
+        accuracy = metrics.accuracy_score(y_t, y_p)
+        precision = metrics.precision_score(y_t, y_p, average='micro')
+        recall = metrics.recall_score(y_t, y_p, average='micro')
 
-        # Divide by 2 (magic number)
-        validation_log_loss = -1.0 * (temp[0,0] + temp[1,1])/(2 * n)
-
-        return validation_log_loss
+        return sk_log_loss, accuracy, precision, recall
     
     #### Helper function ####
 
@@ -214,7 +211,9 @@ def train_3d_nn():
             x = tf.placeholder(tf.float32, shape=[None, 64, 64, 64, 1], name = 'x')
             y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
             y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
-
+            class_weights2 = tf.ones_like(y_labels)
+            class_weights = tf.multiply(class_weights2 , [1000/40513.0, 1000/48.0, 1000/2876.0, 1000/1511.0, 1000/587.0, 1000/315.0, 1000/528.0])
+            
             layer1_conv3d_out, layer1_conv3d_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16,
                                                               num_channels = 1, strides = [1, 3, 3, 3, 1],
                                                               name ='layer1_conv3d')
@@ -273,8 +272,38 @@ def train_3d_nn():
             with tf.name_scope('log_loss'):
                 log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
                 tf.summary.scalar('log_loss', log_loss)
-
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
+        
+            with tf.name_scope('softmax_cross_entropy'):
+                softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, layer6_dense3d_out)
+                tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)  
+                
+            with tf.name_scope('accuracy'):
+                correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_labels, 1))
+                accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+                #accuracy = tf.metrics.accuracy(y_labels, y)
+                tf.summary.scalar('accuracy', accuracy)
+            
+            #with tf.name_scope('sparse_softmax_cross_entropy_with_logits'):
+            #    sparse_softmax_cross_entropy_with_logits = tf.nn.sparse_softmax_cross_entropy_with_logits(y_labels, layer6_dense3d_out)
+            #    tf.summary.scalar('sparse_softmax_cross_entropy_with_logits', sparse_softmax_cross_entropy_with_logits)
+            
+            with tf.name_scope('weighted_log_loss'): 
+                weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15)
+                tf.summary.scalar('weighted_log_loss', weighted_log_loss)
+                
+            #with tf.name_scope('precision'):
+            #    y_pred_class = tf.argmax(y, 1)
+            #    y_labels_class = tf.argmax(y_labels, 1)
+                #correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_labels, 1))
+                #precision = tf.metrics.true_positives(y_labels_class, y_pred_class) / (
+            #    precision = tf.metrics.precision(y_labels_class, y_pred_class)
+            #    tf.summary.scalar('precision', precision)
+            
+            #with tf.name_scope('recall'):
+            #    recall = tf.metrics.recall(y_labels, y)
+            #    tf.summary.scalar('recall', recall)       
+            
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(weighted_log_loss)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
@@ -301,19 +330,23 @@ def train_3d_nn():
         train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES + run_name, sess.graph)
         sess.run(tf.global_variables_initializer())
         
-        pre_train_log_loss = calc_validation_log_loss()
-        print('\nPre-train validation log loss: {0:.5}'.format(pre_train_log_loss))
-
+        pre_train_log_loss, pre_train_acc, pre_train_prec, pre_train_rec = calc_validation_metrics()
+        print('\nPre-train validation log loss scikit: {0:.5}'.format(pre_train_log_loss))
+        print('Pre-train validation accuracy: {0:.5}'.format(pre_train_acc))
+        print('Pre-train validation precision: {0:.5}'.format(pre_train_prec))
+        print('Pre-train validation recall: {0:.5}'.format(pre_train_rec))
+        
         for i in tqdm(range(FLAGS.max_iterations)):
             x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size)
-            _,step_summary, loss_val = sess.run([optimizer, merged, log_loss],
+            _, step_summary, loss_val, custom_loss_val = sess.run([optimizer, merged, log_loss, weighted_log_loss],
                                                 feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
         
-        post_train_log_loss = calc_validation_log_loss()
-        print('\nPost-train validation log loss: {0:.5}'.format(post_train_log_loss))
-
-        run_name = run_name + '_preTrainLogLoss={0:.5}_postTrainLogLoss={1:.5}'.format(pre_train_log_loss, post_train_log_loss)
+        post_train_log_loss, post_train_acc, post_train_prec, post_train_rec = calc_validation_metrics()
+        print('\nPost-train validation log loss scikit: {0:.5}'.format(post_train_log_loss))
+        print('Post-train validation accuracy: {0:.5}'.format(post_train_acc))
+        print('Post-train validation precision: {0:.5}'.format(post_train_prec))
+        print('Post-train validation recall: {0:.5}'.format(post_train_rec))
         
         ## TODO: Save pre-train/post-train log loss with model (name/id)
         
@@ -330,7 +363,7 @@ def train_3d_nn():
 
 if __name__ == '__main__':
     start_time = time.time()
-    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_processed_chunks_nz/'
+    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_processed_chunks_nz_segmented/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/luna/luna16/data/tensorboard_summaries/'
     MODELS = '/kaggle_2/luna/luna16/models/'
 
