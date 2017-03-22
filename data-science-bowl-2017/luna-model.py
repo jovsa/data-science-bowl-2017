@@ -290,7 +290,7 @@ def train_3d_nn():
             y_pred_class = tf.argmax(y, 1)
             y_labels_class = tf.argmax(y_labels, 1)
             
-            confusion_matrix = tf.confusion_matrix(y_labels_class, y_pred_class)
+            confusion_matrix = tf.confusion_matrix(y_labels_class, y_pred_class, num_classes=FLAGS.num_classes)
             
             sum_row_0 = tf.reduce_sum(confusion_matrix[0, :])
             sum_row_1 = tf.reduce_sum(confusion_matrix[1, :])
@@ -421,7 +421,6 @@ def train_3d_nn():
             _, step_summary = sess.run([optimizer, merged],
                                                 feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
-            
         post_train_log_loss, post_train_acc, post_train_prec, post_train_rec = calc_validation_metrics()
         print('\nPost-train validation log loss scikit: {0:.5}'.format(post_train_log_loss))
         print('Post-train validation accuracy: {0:.5}'.format(post_train_acc))
