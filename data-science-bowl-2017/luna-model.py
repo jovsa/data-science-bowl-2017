@@ -279,7 +279,18 @@ def train_3d_nn():
             with tf.name_scope('softmax_cross_entropy'):
                 softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, layer6_dense3d_out)
                 tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)  
-                
+            
+            #with tf.name_scope('sparse_softmax_cross_entropy'):
+            #    sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(y_labels,
+            #                                                                          layer6_dense3d_out)
+            #    tf.summary.scalar('sparse_softmax_cross_entropy', sparse_softmax_cross_entropy)
+            
+            #with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
+            #    weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(y_labels,
+            #                                                                          layer6_dense3d_out,
+            #                                                                          weights=class_weights)
+            #    tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
+            
             with tf.name_scope('accuracy'):
                 correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_labels, 1))
                 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
@@ -382,12 +393,7 @@ def train_3d_nn():
                 tf.summary.scalar('specificity_5', specificity_5)
                 tf.summary.scalar('specificity_6', specificity_6)
                 
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(weighted_log_loss)
-    
-            #with tf.name_scope('sparse_softmax_cross_entropy_with_logits'):
-            #    sparse_softmax_cross_entropy_with_logits = tf.nn.sparse_softmax_cross_entropy_with_logits(y_labels, layer6_dense3d_out)
-            #    tf.summary.scalar('sparse_softmax_cross_entropy_with_logits', sparse_softmax_cross_entropy_with_logits)
-
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(weighted_log_loss)
             
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
@@ -475,6 +481,7 @@ if __name__ == '__main__':
                                 """Whether to allow GPU growth by tf.""")
 
     #post_process()
+    print('process started')
     train_3d_nn()
     end_time = time.time()
     print("Total Time usage: " + str(timedelta(seconds=int(round(end_time - start_time)))))
