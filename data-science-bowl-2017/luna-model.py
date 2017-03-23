@@ -203,6 +203,9 @@ def train_3d_nn():
     print('train_y: {}'.format(train_y.shape))
     print('validation_y: {}'.format(validation_y.shape))
 
+    # Seed numpy random to generate identical random numbers every time (used in batching)
+    np.random.seed(42)
+    
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
