@@ -36,36 +36,27 @@ def variable_summaries(var):
         tf.summary.histogram('histogram', var)
 
 def img_to_rgb(im):
-        n, x, y, z = im.shape
-        ret = np.empty((n, x, y, z, 1), dtype=np.float32)
-        ret[:, :, :, :, 0] = im
-        return ret
+    x, y, z = im.shape
+    ret = np.empty((x, y, z, 1), dtype=np.float32)
+    ret[:, :, :, 0] = im
+    return ret
 
 def get_ids(PATH):
     ids = []
-    for path in glob.glob(PATH + '[0-9\.]*_X.npy'):
-        patient_id = re.match(r'([0-9\.]*)_X.npy', os.path.basename(path)).group(1)
-        ids.append(patient_id)
+    for path in glob.glob(PATH + '*_X.npy'):
+        chunk_id = re.match(r'([0-9a-f-]+)_X.npy', os.path.basename(path)).group(1)
+        ids.append(chunk_id)
     return ids
 
-def get_data(patient_ids, PATH):
-    num_chunks = 0
-
-    for patient_id in patient_ids:
-        x = np.load(PATH + patient_id + '_X.npy')
-        num_chunks = num_chunks + x.shape[0]
-
-    X = np.ndarray([num_chunks, 64, 64, 64, 1], dtype=np.float32)
-    Y = np.ndarray([num_chunks, 7], dtype=np.float32)
+def get_data(chunk_ids, PATH):
+    X = np.asarray(chunk_ids)
+    Y = np.ndarray([len(chunk_ids), 7], dtype=np.float32)
 
     count = 0
-    for patient_id in patient_ids:
-        x = np.load(PATH + patient_id + '_X.npy').astype(np.float32, copy=False)
-        y = np.load(PATH + patient_id + '_Y.npy').astype(np.float32, copy=False)
-        X[count : count + x.shape[0], :, :, :, :] = img_to_rgb(x)
-        Y[count : count + y.shape[0], :] = y
-
-        count = count + x.shape[0]
+    for chunk_id in chunk_ids:
+        y = np.load(PATH + chunk_id + '_Y.npy').astype(np.float32, copy=False)
+        Y[count, :] = y
+        count = count + 1
 
     return X, Y
 
@@ -121,15 +112,23 @@ def dense_3d(inputs,
     layer = tf.nn.relu(layer)
     return layer
 
-def get_batch(x, y, batch_size):
-        num_images = len(x)
-        idx = np.random.choice(num_images,
-                               size=batch_size,
-                               replace=False)
-        x_batch = x[idx]
-        y_batch = y[idx]
+def get_batch(x, y, batch_size, PATH):
+    num_images = len(x)
+    idx = np.random.choice(num_images,
+                           size=batch_size,
+                           replace=False)
+    x_batch_ids = x[idx]
+    y_batch = y[idx]
 
-        return x_batch, y_batch
+    x_batch = np.ndarray([batch_size, 64, 64, 64, 1], dtype=np.float32)
+    
+    count = 0
+    for chunk_id in x_batch_ids:
+        chunk = np.load(PATH + chunk_id + '_X.npy').astype(np.float32, copy=False)
+        x_batch[count, :, :, :, :] = img_to_rgb(chunk)
+        count = count + 1
+
+    return x_batch, y_batch
 
 def normalize(image):
     MIN_BOUND = -1000.0
@@ -146,9 +145,17 @@ def zero_center(image):
 
 def train_3d_nn():
     #### Helper function ####
-    def predict_prob_validation(validation_x, labels, write_to_tensorboard=False):
-        num_images = len(validation_x)
+    def predict_prob_validation(validation_x_ids, labels, write_to_tensorboard=False):
+        num_images = len(validation_x_ids)
 
+        validation_x = np.ndarray([num_images, 64, 64, 64, 1], dtype=np.float32)
+    
+        count = 0
+        for chunk_id in validation_x_ids:
+            chunk = np.load(DATA_PATH + chunk_id + '_X.npy').astype(np.float32, copy=False)
+            validation_x[count, :, :, :, :] = img_to_rgb(chunk)
+            count = count + 1
+        
         prob_pred = np.zeros(shape=[num_images, FLAGS.num_classes], dtype=np.float64)
 
         i = 0
@@ -185,8 +192,9 @@ def train_3d_nn():
     #### Helper function ####
 
     time0 = time.time()
-    patient_ids = get_ids(DATA_PATH)
-    X, Y = get_data(patient_ids, DATA_PATH)
+    chunks_ids = get_ids(DATA_PATH)
+    X, Y = get_data(chunks_ids, DATA_PATH)
+    
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
     print('Splitting into train, validation sets')
@@ -215,7 +223,7 @@ def train_3d_nn():
             y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
             y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
             class_weights2 = tf.ones_like(y_labels)
-            class_weights = tf.multiply(class_weights2 , [1000/40513.0, 1000/48.0, 1000/2876.0, 1000/1511.0, 1000/587.0, 1000/315.0, 1000/528.0])
+            class_weights = tf.multiply(class_weights2 , [1000/40511.0, 1000/240.0, 1000/14380.0, 1000/7555.0, 1000/2935.0, 1000/1575.0, 1000/2640.0])
             
             layer1_conv3d_out, layer1_conv3d_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16,
                                                               num_channels = 1, strides = [1, 3, 3, 3, 1],
@@ -426,7 +434,7 @@ def train_3d_nn():
         print('Pre-train validation recall: {0:.5}'.format(pre_train_rec))
         
         for i in tqdm(range(FLAGS.max_iterations)):
-            x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size)
+            x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size, DATA_PATH)
             _, step_summary = sess.run([optimizer, merged],
                                                 feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
@@ -451,7 +459,7 @@ def train_3d_nn():
 
 if __name__ == '__main__':
     start_time = time.time()
-    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_processed_chunks_nz_segmented/'
+    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_proc_chunks_seg_aug_nz_single/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/luna/luna16/data/tensorboard_summaries/'
     MODELS = '/kaggle_2/luna/luna16/models/'
 
