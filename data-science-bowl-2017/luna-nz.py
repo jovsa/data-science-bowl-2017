@@ -22,8 +22,8 @@ from tqdm import tqdm
 # Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
 pd.options.mode.chained_assignment = None
 
-DATA_PATH_PREPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_segmented/'
-DATA_PATH_POSTPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_nz_segmented/'
+DATA_PATH_PREPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_segmented_augmented/'
+DATA_PATH_POSTPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_segmented_augmented_nz/'
 
 def get_ids(PATH):
     ids = []
