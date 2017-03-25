@@ -172,16 +172,16 @@ def train_3d_nn():
         prob_pred = predict_prob_validation(validation_x,
                                             labels = validation_y,
                                             write_to_tensorboard = write_to_tensorboard)
-        
+
         y_t, y_p = np.argmax(validation_y, axis = 1), np.argmax(prob_pred, axis = 1)
-               
-        sk_log_loss = metrics.log_loss(validation_y, prob_pred)       
+
+        sk_log_loss = metrics.log_loss(validation_y, prob_pred)
         accuracy = metrics.accuracy_score(y_t, y_p)
         precision = metrics.precision_score(y_t, y_p, average='micro')
         recall = metrics.recall_score(y_t, y_p, average='micro')
 
         return sk_log_loss, accuracy, precision, recall
-    
+
     #### Helper function ####
 
     time0 = time.time()
@@ -197,7 +197,7 @@ def train_3d_nn():
     del X
     del Y
     print("Total time to split: " + str(timedelta(seconds=int(round(time.time() - time0)))))
-    
+
     print('train_x: {}'.format(train_x.shape))
     print('validation_x: {}'.format(validation_x.shape))
     print('train_y: {}'.format(train_y.shape))
@@ -205,7 +205,7 @@ def train_3d_nn():
 
     # Seed numpy random to generate identical random numbers every time (used in batching)
     np.random.seed(42)
-    
+
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
@@ -216,7 +216,7 @@ def train_3d_nn():
             y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
             class_weights2 = tf.ones_like(y_labels)
             class_weights = tf.multiply(class_weights2 , [1000/40513.0, 1000/48.0, 1000/2876.0, 1000/1511.0, 1000/587.0, 1000/315.0, 1000/528.0])
-            
+
             layer1_conv3d_out, layer1_conv3d_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16,
                                                               num_channels = 1, strides = [1, 3, 3, 3, 1],
                                                               name ='layer1_conv3d')
@@ -275,37 +275,37 @@ def train_3d_nn():
             with tf.name_scope('log_loss'):
                 log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
                 tf.summary.scalar('log_loss', log_loss)
-        
+
             with tf.name_scope('softmax_cross_entropy'):
                 softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, layer6_dense3d_out)
-                tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)  
-            
+                tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)
+
             #with tf.name_scope('sparse_softmax_cross_entropy'):
             #    sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(y_labels,
             #                                                                          layer6_dense3d_out)
             #    tf.summary.scalar('sparse_softmax_cross_entropy', sparse_softmax_cross_entropy)
-            
+
             #with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
             #    weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(y_labels,
             #                                                                          layer6_dense3d_out,
             #                                                                          weights=class_weights)
             #    tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
-            
+
             with tf.name_scope('accuracy'):
                 correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_labels, 1))
                 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
                 tf.summary.scalar('accuracy', accuracy)
-                        
-            with tf.name_scope('weighted_log_loss'): 
+
+            with tf.name_scope('weighted_log_loss'):
                 weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15)
                 tf.summary.scalar('weighted_log_loss', weighted_log_loss)
-            
+
             # Metrics calculations
             y_pred_class = tf.argmax(y, 1)
             y_labels_class = tf.argmax(y_labels, 1)
-            
+
             confusion_matrix = tf.confusion_matrix(y_labels_class, y_pred_class, num_classes=FLAGS.num_classes)
-            
+
             sum_row_0 = tf.reduce_sum(confusion_matrix[0, :])
             sum_row_1 = tf.reduce_sum(confusion_matrix[1, :])
             sum_row_2 = tf.reduce_sum(confusion_matrix[2, :])
@@ -313,7 +313,7 @@ def train_3d_nn():
             sum_row_4 = tf.reduce_sum(confusion_matrix[4, :])
             sum_row_5 = tf.reduce_sum(confusion_matrix[5, :])
             sum_row_6 = tf.reduce_sum(confusion_matrix[6, :])
-            
+
             sum_col_0 = tf.reduce_sum(confusion_matrix[:, 0])
             sum_col_1 = tf.reduce_sum(confusion_matrix[:, 1])
             sum_col_2 = tf.reduce_sum(confusion_matrix[:, 2])
@@ -321,9 +321,9 @@ def train_3d_nn():
             sum_col_4 = tf.reduce_sum(confusion_matrix[:, 4])
             sum_col_5 = tf.reduce_sum(confusion_matrix[:, 5])
             sum_col_6 = tf.reduce_sum(confusion_matrix[:, 6])
-            
+
             sum_all = tf.reduce_sum(confusion_matrix[:, :])
-            
+
             with tf.name_scope('precision'):
                 precision_0 = confusion_matrix[0,0] / sum_col_0
                 precision_1 = confusion_matrix[1,1] / sum_col_1
@@ -339,8 +339,8 @@ def train_3d_nn():
                 tf.summary.scalar('precision_4', precision_4)
                 tf.summary.scalar('precision_5', precision_5)
                 tf.summary.scalar('precision_6', precision_6)
-            
-            with tf.name_scope('recall'):                
+
+            with tf.name_scope('recall'):
                 recall_0 = confusion_matrix[0,0] / sum_row_0
                 recall_1 = confusion_matrix[1,1] / sum_row_1
                 recall_2 = confusion_matrix[2,2] / sum_row_2
@@ -355,36 +355,36 @@ def train_3d_nn():
                 tf.summary.scalar('recall_4', recall_4)
                 tf.summary.scalar('recall_5', recall_5)
                 tf.summary.scalar('recall_6', recall_6)
-            
+
             with tf.name_scope('specificity'):
                 tn_0 = sum_all - (sum_row_0 + sum_col_0 - confusion_matrix[0,0])
                 fp_0 = sum_col_0 - confusion_matrix[0,0]
                 specificity_0 = tn_0 / (tn_0 + fp_0)
-                
+
                 tn_1 = sum_all - (sum_row_1 + sum_col_1 - confusion_matrix[1,1])
                 fp_1 = sum_col_1 - confusion_matrix[1,1]
                 specificity_1 = tn_1 / (tn_1 + fp_1)
-                
+
                 tn_2 = sum_all - (sum_row_2 + sum_col_2 - confusion_matrix[2,2])
                 fp_2 = sum_col_2 - confusion_matrix[2,2]
                 specificity_2 = tn_2 / (tn_2 + fp_2)
-                
+
                 tn_3 = sum_all - (sum_row_3 + sum_col_3 - confusion_matrix[3,3])
                 fp_3 = sum_col_3 - confusion_matrix[3,3]
                 specificity_3 = tn_3 / (tn_3 + fp_3)
-                
+
                 tn_4 = sum_all - (sum_row_4 + sum_col_4 - confusion_matrix[4,4])
                 fp_4 = sum_col_4 - confusion_matrix[4,4]
                 specificity_4 = tn_4 / (tn_4 + fp_4)
-                
+
                 tn_5 = sum_all - (sum_row_5 + sum_col_5 - confusion_matrix[5,5])
                 fp_5 = sum_col_5 - confusion_matrix[5,5]
                 specificity_5 = tn_5 / (tn_5 + fp_5)
-                
+
                 tn_6 = sum_all - (sum_row_6 + sum_col_6 - confusion_matrix[6,6])
                 fp_6 = sum_col_6 - confusion_matrix[6,6]
                 specificity_6 = tn_6 / (tn_6 + fp_6)
-                
+
                 tf.summary.scalar('specificity_0', specificity_0)
                 tf.summary.scalar('specificity_1', specificity_1)
                 tf.summary.scalar('specificity_2', specificity_2)
@@ -392,9 +392,9 @@ def train_3d_nn():
                 tf.summary.scalar('specificity_4', specificity_4)
                 tf.summary.scalar('specificity_5', specificity_5)
                 tf.summary.scalar('specificity_6', specificity_6)
-                
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(weighted_log_loss)
-            
+
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
+
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
 
@@ -408,14 +408,14 @@ def train_3d_nn():
     start_timestamp = str(int(time.time()))
 
     model_id = str(uuid.uuid4())
-    
+
     # Name used to save all artifacts of run
     run_name = 'runType=train_timestamp={0:}_batchSize={1:}_maxIterations={2:}_numTrain={4:}_numValidation={5:}_modelName={3:}_modelId={6:}'
     run_name = run_name.format(start_timestamp, FLAGS.batch_size, FLAGS.max_iterations,
                                model_name, train_x.shape[0], validation_x.shape[0], model_id)
-    
+
     print('Run_name: {}'.format(run_name))
-    
+
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES + run_name, sess.graph)
         sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
@@ -424,7 +424,7 @@ def train_3d_nn():
         print('Pre-train validation accuracy: {0:.5}'.format(pre_train_acc))
         print('Pre-train validation precision: {0:.5}'.format(pre_train_prec))
         print('Pre-train validation recall: {0:.5}'.format(pre_train_rec))
-        
+
         for i in tqdm(range(FLAGS.max_iterations)):
             x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size)
             _, step_summary = sess.run([optimizer, merged],
@@ -435,9 +435,9 @@ def train_3d_nn():
         print('Post-train validation accuracy: {0:.5}'.format(post_train_acc))
         print('Post-train validation precision: {0:.5}'.format(post_train_prec))
         print('Post-train validation recall: {0:.5}'.format(post_train_rec))
-        
+
         ## TODO: Save pre-train/post-train log loss with model (name/id)
-        
+
         print('Model id: {}'.format(model_id))
         # Saving model
         checkpoint_folder = os.path.join(MODELS, model_id)

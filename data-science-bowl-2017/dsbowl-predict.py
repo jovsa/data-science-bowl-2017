@@ -158,6 +158,8 @@ def predict_features():
             x = tf.placeholder(tf.float32, shape=[None, 64, 64, 64, 1], name = 'x')
             y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
             y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
+            class_weights2 = tf.ones_like(y_labels)
+            class_weights = tf.multiply(class_weights2 , [1000/40513.0, 1000/48.0, 1000/2876.0, 1000/1511.0, 1000/587.0, 1000/315.0, 1000/528.0])
 
             layer1_conv3d_out, layer1_conv3d_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16,
                                                               num_channels = 1, strides = [1, 3, 3, 3, 1],
@@ -218,27 +220,144 @@ def predict_features():
                 log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
                 tf.summary.scalar('log_loss', log_loss)
 
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-4).minimize(log_loss)
+            with tf.name_scope('softmax_cross_entropy'):
+                softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, layer6_dense3d_out)
+                tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)
+
+            #with tf.name_scope('sparse_softmax_cross_entropy'):
+            #    sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(y_labels,
+            #                                                                          layer6_dense3d_out)
+            #    tf.summary.scalar('sparse_softmax_cross_entropy', sparse_softmax_cross_entropy)
+
+            #with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
+            #    weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(y_labels,
+            #                                                                          layer6_dense3d_out,
+            #                                                                          weights=class_weights)
+            #    tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
+
+            with tf.name_scope('accuracy'):
+                correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_labels, 1))
+                accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+                tf.summary.scalar('accuracy', accuracy)
+
+            with tf.name_scope('weighted_log_loss'):
+                weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15)
+                tf.summary.scalar('weighted_log_loss', weighted_log_loss)
+
+            # Metrics calculations
+            y_pred_class = tf.argmax(y, 1)
+            y_labels_class = tf.argmax(y_labels, 1)
+
+            confusion_matrix = tf.confusion_matrix(y_labels_class, y_pred_class, num_classes=FLAGS.num_classes)
+
+            sum_row_0 = tf.reduce_sum(confusion_matrix[0, :])
+            sum_row_1 = tf.reduce_sum(confusion_matrix[1, :])
+            sum_row_2 = tf.reduce_sum(confusion_matrix[2, :])
+            sum_row_3 = tf.reduce_sum(confusion_matrix[3, :])
+            sum_row_4 = tf.reduce_sum(confusion_matrix[4, :])
+            sum_row_5 = tf.reduce_sum(confusion_matrix[5, :])
+            sum_row_6 = tf.reduce_sum(confusion_matrix[6, :])
+
+            sum_col_0 = tf.reduce_sum(confusion_matrix[:, 0])
+            sum_col_1 = tf.reduce_sum(confusion_matrix[:, 1])
+            sum_col_2 = tf.reduce_sum(confusion_matrix[:, 2])
+            sum_col_3 = tf.reduce_sum(confusion_matrix[:, 3])
+            sum_col_4 = tf.reduce_sum(confusion_matrix[:, 4])
+            sum_col_5 = tf.reduce_sum(confusion_matrix[:, 5])
+            sum_col_6 = tf.reduce_sum(confusion_matrix[:, 6])
+
+            sum_all = tf.reduce_sum(confusion_matrix[:, :])
+
+            with tf.name_scope('precision'):
+                precision_0 = confusion_matrix[0,0] / sum_col_0
+                precision_1 = confusion_matrix[1,1] / sum_col_1
+                precision_2 = confusion_matrix[2,2] / sum_col_2
+                precision_3 = confusion_matrix[3,3] / sum_col_3
+                precision_4 = confusion_matrix[4,4] / sum_col_4
+                precision_5 = confusion_matrix[5,5] / sum_col_5
+                precision_6 = confusion_matrix[6,6] / sum_col_6
+                tf.summary.scalar('precision_0', precision_0)
+                tf.summary.scalar('precision_1', precision_1)
+                tf.summary.scalar('precision_2', precision_2)
+                tf.summary.scalar('precision_3', precision_3)
+                tf.summary.scalar('precision_4', precision_4)
+                tf.summary.scalar('precision_5', precision_5)
+                tf.summary.scalar('precision_6', precision_6)
+
+            with tf.name_scope('recall'):
+                recall_0 = confusion_matrix[0,0] / sum_row_0
+                recall_1 = confusion_matrix[1,1] / sum_row_1
+                recall_2 = confusion_matrix[2,2] / sum_row_2
+                recall_3 = confusion_matrix[3,3] / sum_row_3
+                recall_4 = confusion_matrix[4,4] / sum_row_4
+                recall_5 = confusion_matrix[5,5] / sum_row_5
+                recall_6 = confusion_matrix[6,6] / sum_row_6
+                tf.summary.scalar('recall_0', recall_0)
+                tf.summary.scalar('recall_1', recall_1)
+                tf.summary.scalar('recall_2', recall_2)
+                tf.summary.scalar('recall_3', recall_3)
+                tf.summary.scalar('recall_4', recall_4)
+                tf.summary.scalar('recall_5', recall_5)
+                tf.summary.scalar('recall_6', recall_6)
+
+            with tf.name_scope('specificity'):
+                tn_0 = sum_all - (sum_row_0 + sum_col_0 - confusion_matrix[0,0])
+                fp_0 = sum_col_0 - confusion_matrix[0,0]
+                specificity_0 = tn_0 / (tn_0 + fp_0)
+
+                tn_1 = sum_all - (sum_row_1 + sum_col_1 - confusion_matrix[1,1])
+                fp_1 = sum_col_1 - confusion_matrix[1,1]
+                specificity_1 = tn_1 / (tn_1 + fp_1)
+
+                tn_2 = sum_all - (sum_row_2 + sum_col_2 - confusion_matrix[2,2])
+                fp_2 = sum_col_2 - confusion_matrix[2,2]
+                specificity_2 = tn_2 / (tn_2 + fp_2)
+
+                tn_3 = sum_all - (sum_row_3 + sum_col_3 - confusion_matrix[3,3])
+                fp_3 = sum_col_3 - confusion_matrix[3,3]
+                specificity_3 = tn_3 / (tn_3 + fp_3)
+
+                tn_4 = sum_all - (sum_row_4 + sum_col_4 - confusion_matrix[4,4])
+                fp_4 = sum_col_4 - confusion_matrix[4,4]
+                specificity_4 = tn_4 / (tn_4 + fp_4)
+
+                tn_5 = sum_all - (sum_row_5 + sum_col_5 - confusion_matrix[5,5])
+                fp_5 = sum_col_5 - confusion_matrix[5,5]
+                specificity_5 = tn_5 / (tn_5 + fp_5)
+
+                tn_6 = sum_all - (sum_row_6 + sum_col_6 - confusion_matrix[6,6])
+                fp_6 = sum_col_6 - confusion_matrix[6,6]
+                specificity_6 = tn_6 / (tn_6 + fp_6)
+
+                tf.summary.scalar('specificity_0', specificity_0)
+                tf.summary.scalar('specificity_1', specificity_1)
+                tf.summary.scalar('specificity_2', specificity_2)
+                tf.summary.scalar('specificity_3', specificity_3)
+                tf.summary.scalar('specificity_4', specificity_4)
+                tf.summary.scalar('specificity_5', specificity_5)
+                tf.summary.scalar('specificity_6', specificity_6)
+
+            #optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
-    
+
     # Setting up config
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = FLAGS.allow_growth
     config.log_device_placement=FLAGS.log_device_placement
     config.allow_soft_placement=FLAGS.allow_soft_placement
-    
+
     with tf.Session(graph=graph, config=config) as sess:
         sess.run(tf.global_variables_initializer())
         saver = tf.train.import_meta_graph(MODEL_PATH + 'model.meta')
         saver.restore(sess, tf.train.latest_checkpoint(MODEL_PATH))
-        
+
         processed_patients = set()
         for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
             n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
             processed_patients.add(n.group(1))
-        
+
         for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
             m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
             patient_uid = m.group(1)
@@ -248,14 +367,15 @@ def predict_features():
                 continue
 
             # print('Processing patient {}'.format(patient_uid))
-            x_in = get_patient_data_chunks(patient_uid)   
+            x_in = get_patient_data_chunks(patient_uid)
+            # print('Got Data for patient {}'.format(patient_uid))
             X = np.ndarray([x_in.shape[0], 64, 64, 64, 1], dtype=np.float32)
             X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
-            
+
             # print('X: {}'.format(X.shape))
             predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
             transfer_values = np.ndarray([X.shape[0], 512], dtype=np.float32)
-            
+
             num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
             for i in range(0, num_batches):
                 batch_start = i * FLAGS.batch_size
@@ -273,20 +393,19 @@ def predict_features():
 
             np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
             np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
-            
+
             del x_in, X
 
     sess.close()
 
 if __name__ == '__main__':
     start_time = time.time()
-   
+
     DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
-    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features/'
+    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v2/'
     PATIENT_SCANS = 'scan_segmented_lungs_fill_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
-    MODELS = '/kaggle_2/luna/luna16/models/'
-    MODEL_PATH = '/kaggle_2/luna/luna16/models/e03f0475-091e-4821-862e-ae5303d670c8/'
+    MODEL_PATH = '/kaggle_2/luna/luna16/models/3ac0a07d-9264-487a-b730-7c8a04557706/'
     CHUNK_SIZE = 64
     OVERLAP_PERCENTAGE = 0.7
 
@@ -312,7 +431,7 @@ if __name__ == '__main__':
                                 """Whether to allow soft placement of calculations by tf.""")
     tf.app.flags.DEFINE_boolean('allow_growth', True,
                                 """Whether to allow GPU growth by tf.""")
-    
+
     predict_features()
     end_time = time.time()
     print("Total Time usage: " + str(timedelta(seconds=int(round(end_time - start_time)))))
