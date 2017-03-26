@@ -224,7 +224,7 @@ def train_3d_nn():
             y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
             class_weights2 = tf.ones_like(y_labels)
             class_weights = tf.multiply(class_weights2 , [1000/40511.0, 1000/240.0, 1000/14380.0, 1000/7555.0, 1000/2935.0, 1000/1575.0, 1000/2640.0])
-    
+
             layer1_conv3d_out, layer1_conv3d_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16,
                                                               num_channels = 1, strides = [1, 3, 3, 3, 1],
                                                               name ='layer1_conv3d')
@@ -280,6 +280,7 @@ def train_3d_nn():
             y = tf.nn.softmax(layer6_dense3d_out)
             print(y)
 
+            # Overall Metrics Calculations
             with tf.name_scope('log_loss'):
                 log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
                 tf.summary.scalar('log_loss', log_loss)
@@ -287,17 +288,6 @@ def train_3d_nn():
             with tf.name_scope('softmax_cross_entropy'):
                 softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, layer6_dense3d_out)
                 tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)
-
-            #with tf.name_scope('sparse_softmax_cross_entropy'):
-            #    sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(y_labels,
-            #                                                                          layer6_dense3d_out)
-            #    tf.summary.scalar('sparse_softmax_cross_entropy', sparse_softmax_cross_entropy)
-
-            #with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
-            #    weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(y_labels,
-            #                                                                          layer6_dense3d_out,
-            #                                                                          weights=class_weights)
-            #    tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
 
             with tf.name_scope('accuracy'):
                 correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_labels, 1))
@@ -308,7 +298,7 @@ def train_3d_nn():
                 weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15)
                 tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
-            # Metrics calculations
+            # Class Based Metrics calculations
             y_pred_class = tf.argmax(y, 1)
             y_labels_class = tf.argmax(y_labels, 1)
 
@@ -401,6 +391,140 @@ def train_3d_nn():
                 tf.summary.scalar('specificity_5', specificity_5)
                 tf.summary.scalar('specificity_6', specificity_6)
 
+            with tf.name_scope('true_positives'):
+                tp_0 = confusion_matrix[0,0]
+                tp_1 = confusion_matrix[1,1]
+                tp_2 = confusion_matrix[2,2]
+                tp_3 = confusion_matrix[3,3]
+                tp_4 = confusion_matrix[4,4]
+                tp_5 = confusion_matrix[5,5]
+                tp_6 = confusion_matrix[6,6]
+
+                tf.summary.scalar('true_positives_0', tp_0)
+                tf.summary.scalar('true_positives_1', tp_1)
+                tf.summary.scalar('true_positives_2', tp_2)
+                tf.summary.scalar('true_positives_3', tp_3)
+                tf.summary.scalar('true_positives_4', tp_4)
+                tf.summary.scalar('true_positives_5', tp_5)
+                tf.summary.scalar('true_positives_6', tp_6)
+
+            with tf.name_scope('true_negatives'):
+                tf.summary.scalar('true_negatives_0', tn_0)
+                tf.summary.scalar('true_negatives_0', tn_1)
+                tf.summary.scalar('true_negatives_0', tn_2)
+                tf.summary.scalar('true_negatives_0', tn_3)
+                tf.summary.scalar('true_negatives_0', tn_4)
+                tf.summary.scalar('true_negatives_0', tn_5)
+                tf.summary.scalar('true_negatives_0', tn_6)
+
+            with tf.name_scope('false_positives'):
+                tf.summary.scalar('false_positives_0', fp_0)
+                tf.summary.scalar('false_positives_1', fp_1)
+                tf.summary.scalar('false_positives_2', fp_2)
+                tf.summary.scalar('false_positives_3', fp_3)
+                tf.summary.scalar('false_positives_4', fp_4)
+                tf.summary.scalar('false_positives_5', fp_5)
+                tf.summary.scalar('false_positives_6', fp_6)
+
+            with tf.name_scope('false_negatives'):
+                fn_0 = sum_row_0 - tp_0
+                fn_1 = sum_row_1 - tp_1
+                fn_2 = sum_row_2 - tp_2
+                fn_3 = sum_row_3 - tp_3
+                fn_4 = sum_row_4 - tp_4
+                fn_5 = sum_row_5 - tp_5
+                fn_6 = sum_row_6 - tp_6
+
+                tf.summary.scalar('false_negatives_0', fn_0)
+                tf.summary.scalar('false_negatives_1', fn_1)
+                tf.summary.scalar('false_negatives_2', fn_2)
+                tf.summary.scalar('false_negatives_3', fn_3)
+                tf.summary.scalar('false_negatives_4', fn_4)
+                tf.summary.scalar('false_negatives_5', fn_5)
+                tf.summary.scalar('false_negatives_6', fn_6)
+
+            with tf.name_scope('log_loss_by_class'):
+                log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], epsilon=10e-15)
+                log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], epsilon=10e-15)
+                log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], epsilon=10e-15)
+                log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], epsilon=10e-15)
+                log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], epsilon=10e-15)
+                log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], epsilon=10e-15)
+                log_loss_6 = tf.losses.log_loss(y_labels[6], y[6], epsilon=10e-15)
+
+                tf.summary.scalar('log_loss_0', log_loss_0)
+                tf.summary.scalar('log_loss_1', log_loss_1)
+                tf.summary.scalar('log_loss_2', log_loss_2)
+                tf.summary.scalar('log_loss_3', log_loss_3)
+                tf.summary.scalar('log_loss_4', log_loss_4)
+                tf.summary.scalar('log_loss_5', log_loss_5)
+                tf.summary.scalar('log_loss_6', log_loss_6)
+
+            with tf.name_scope('softmax_cross_entropy_by_class'):
+                softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], layer6_dense3d_out[0])
+                softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], layer6_dense3d_out[1])
+                softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], layer6_dense3d_out[2])
+                softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], layer6_dense3d_out[3])
+                softmax_cross_entropy_4 = tf.losses.softmax_cross_entropy(y_labels[4], layer6_dense3d_out[4])
+                softmax_cross_entropy_5 = tf.losses.softmax_cross_entropy(y_labels[5], layer6_dense3d_out[5])
+                softmax_cross_entropy_6 = tf.losses.softmax_cross_entropy(y_labels[6], layer6_dense3d_out[6])
+
+                tf.summary.scalar('softmax_cross_entropy_0', softmax_cross_entropy_0)
+                tf.summary.scalar('softmax_cross_entropy_1', softmax_cross_entropy_1)
+                tf.summary.scalar('softmax_cross_entropy_2', softmax_cross_entropy_2)
+                tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
+                tf.summary.scalar('softmax_cross_entropy_4', softmax_cross_entropy_4)
+                tf.summary.scalar('softmax_cross_entropy_5', softmax_cross_entropy_5)
+                tf.summary.scalar('softmax_cross_entropy_6', softmax_cross_entropy_6)
+
+            with tf.name_scope('accuracy_by_class'):
+                correct_prediction_0 = tf.equal(tf.argmax(y[0], 1), tf.argmax(y_labels[0], 1))
+                accuracy_0 = tf.reduce_mean(tf.cast(correct_prediction_0, "float"))
+
+                correct_prediction_1 = tf.equal(tf.argmax(y[1], 1), tf.argmax(y_labels[1], 1))
+                accuracy_1 = tf.reduce_mean(tf.cast(correct_prediction_1, "float"))
+
+                correct_prediction_2 = tf.equal(tf.argmax(y[2], 1), tf.argmax(y_labels[2], 1))
+                accuracy_2 = tf.reduce_mean(tf.cast(correct_prediction_2, "float"))
+
+                correct_prediction_3 = tf.equal(tf.argmax(y[3], 1), tf.argmax(y_labels[3], 1))
+                accuracy_3 = tf.reduce_mean(tf.cast(correct_prediction_3, "float"))
+
+                correct_prediction_4 = tf.equal(tf.argmax(y[4], 1), tf.argmax(y_labels[4], 1))
+                accuracy_4 = tf.reduce_mean(tf.cast(correct_prediction_4, "float"))
+
+                correct_prediction_5 = tf.equal(tf.argmax(y[5], 1), tf.argmax(y_labels[5], 1))
+                accuracy_5 = tf.reduce_mean(tf.cast(correct_prediction_5, "float"))
+
+                correct_prediction_6 = tf.equal(tf.argmax(y[6], 1), tf.argmax(y_labels[6], 1))
+                accuracy_6 = tf.reduce_mean(tf.cast(correct_prediction_6, "float"))
+
+                tf.summary.scalar('accuracy_0', accuracy_0)
+                tf.summary.scalar('accuracy_1', accuracy_1)
+                tf.summary.scalar('accuracy_2', accuracy_2)
+                tf.summary.scalar('accuracy_3', accuracy_3)
+                tf.summary.scalar('accuracy_4', accuracy_4)
+                tf.summary.scalar('accuracy_5', accuracy_5)
+                tf.summary.scalar('accuracy_6', accuracy_6)
+
+
+            with tf.name_scope('weighted_log_loss_by_class'):
+                weighted_log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], weights=class_weights[0], epsilon=10e-15)
+                weighted_log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], weights=class_weights[1], epsilon=10e-15)
+                weighted_log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], weights=class_weights[2], epsilon=10e-15)
+                weighted_log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], weights=class_weights[3], epsilon=10e-15)
+                weighted_log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], weights=class_weights[4], epsilon=10e-15)
+                weighted_log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], weights=class_weights[5], epsilon=10e-15)
+                weighted_log_loss_6 = tf.losses.log_loss(y_labels[6], y[6], weights=class_weights[6], epsilon=10e-15)
+
+                tf.summary.scalar('weighted_log_loss_0', weighted_log_loss_0)
+                tf.summary.scalar('weighted_log_loss_1', weighted_log_loss_1)
+                tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
+                tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
+                tf.summary.scalar('weighted_log_loss_4', weighted_log_loss_4)
+                tf.summary.scalar('weighted_log_loss_5', weighted_log_loss_5)
+                tf.summary.scalar('weighted_log_loss_6', weighted_log_loss_6)
+            
             optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
 
         merged = tf.summary.merge_all()
