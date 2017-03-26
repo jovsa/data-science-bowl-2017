@@ -34,7 +34,7 @@ def get_inputs():
         patient_id = n.group(1)
         predictions = np.array([np.mean(np.load(DATA_PATH + patient_id + '_predictions.npy'), axis=0)])
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
-        transfer_values = sp.misc.imresize(transfer_values, (100, 100))
+        transfer_values = sp.misc.imresize(transfer_values, (1150, 1150))
         transfer_values = transfer_values.flatten()
         feature_val = transfer_values
         try:
@@ -84,15 +84,9 @@ if __name__ == '__main__':
     start_time = time.time()
 
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features/'
-    TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
-    MODELS = '/kaggle_2/luna/luna16/models/'
-    MODEL_CHECKPOINTS = '/kaggle/dev/data-science-bowl-2017-data/models/checkpoints/'
-    MODEL_PATH = '/kaggle_2/luna/luna16/models/e03f0475-091e-4821-862e-ae5303d670c8/'
-    STAGE1 = '/kaggle/dev/data-science-bowl-2017-data/stage1/'
+    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v2/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
-    NAIVE_SUBMISSION = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/submissions/naive_submission.csv'
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
