@@ -452,13 +452,14 @@ def train_3d_nn():
                 log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], epsilon=10e-15)
                 log_loss_6 = tf.losses.log_loss(y_labels[6], y[6], epsilon=10e-15)
 
-                tf.summary.scalar('log_loss_0', log_loss_0)
-                tf.summary.scalar('log_loss_1', log_loss_1)
-                tf.summary.scalar('log_loss_2', log_loss_2)
-                tf.summary.scalar('log_loss_3', log_loss_3)
-                tf.summary.scalar('log_loss_4', log_loss_4)
-                tf.summary.scalar('log_loss_5', log_loss_5)
-                tf.summary.scalar('log_loss_6', log_loss_6)
+                #added extra '_' to avoid tenosorboard name collision with the main log_loss metric
+                tf.summary.scalar('log_loss__0', log_loss_0)
+                tf.summary.scalar('log_loss__1', log_loss_1)
+                tf.summary.scalar('log_loss__2', log_loss_2)
+                tf.summary.scalar('log_loss__3', log_loss_3)
+                tf.summary.scalar('log_loss__4', log_loss_4)
+                tf.summary.scalar('log_loss__5', log_loss_5)
+                tf.summary.scalar('log_loss__6', log_loss_6)
 
             with tf.name_scope('softmax_cross_entropy_by_class'):
                 softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], layer6_dense3d_out[0])
@@ -478,26 +479,14 @@ def train_3d_nn():
                 tf.summary.scalar('softmax_cross_entropy_6', softmax_cross_entropy_6)
 
             with tf.name_scope('accuracy_by_class'):
-                correct_prediction_0 = tf.equal(y[0], y_labels[0])
-                accuracy_0 = tf.reduce_mean(tf.cast(correct_prediction_0, "float"))
 
-                correct_prediction_1 = tf.equal(y[1], y_labels[1])
-                accuracy_1 = tf.reduce_mean(tf.cast(correct_prediction_1, "float"))
-
-                correct_prediction_2 = tf.equal(y[2], y_labels[2])
-                accuracy_2 = tf.reduce_mean(tf.cast(correct_prediction_2, "float"))
-
-                correct_prediction_3 = tf.equal(y[3], y_labels[3])
-                accuracy_3 = tf.reduce_mean(tf.cast(correct_prediction_3, "float"))
-
-                correct_prediction_4 = tf.equal(y[4], y_labels[4])
-                accuracy_4 = tf.reduce_mean(tf.cast(correct_prediction_4, "float"))
-
-                correct_prediction_5 = tf.equal(y[5], y_labels[5])
-                accuracy_5 = tf.reduce_mean(tf.cast(correct_prediction_5, "float"))
-
-                correct_prediction_6 = tf.equal(y[6], y_labels[6])
-                accuracy_6 = tf.reduce_mean(tf.cast(correct_prediction_6, "float"))
+                accuracy_0 = (tp_0 + tn_0)/(tp_0 + fp_0 + fn_0 + tn_0)
+                accuracy_1 = (tp_1 + tn_1)/(tp_1 + fp_1 + fn_1 + tn_1)
+                accuracy_2 = (tp_2 + tn_2)/(tp_2 + fp_2 + fn_2 + tn_2)
+                accuracy_3 = (tp_3 + tn_3)/(tp_3 + fp_3 + fn_3 + tn_3)
+                accuracy_4 = (tp_4 + tn_4)/(tp_4 + fp_4 + fn_4 + tn_4)
+                accuracy_5 = (tp_5 + tn_5)/(tp_5 + fp_5 + fn_5 + tn_5)
+                accuracy_6 = (tp_6 + tn_6)/(tp_6 + fp_6 + fn_6 + tn_6)
 
                 tf.summary.scalar('accuracy_0', accuracy_0)
                 tf.summary.scalar('accuracy_1', accuracy_1)
