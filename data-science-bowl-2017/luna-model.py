@@ -410,12 +410,12 @@ def train_3d_nn():
 
             with tf.name_scope('true_negatives'):
                 tf.summary.scalar('true_negatives_0', tn_0)
-                tf.summary.scalar('true_negatives_0', tn_1)
-                tf.summary.scalar('true_negatives_0', tn_2)
-                tf.summary.scalar('true_negatives_0', tn_3)
-                tf.summary.scalar('true_negatives_0', tn_4)
-                tf.summary.scalar('true_negatives_0', tn_5)
-                tf.summary.scalar('true_negatives_0', tn_6)
+                tf.summary.scalar('true_negatives_1', tn_1)
+                tf.summary.scalar('true_negatives_2', tn_2)
+                tf.summary.scalar('true_negatives_3', tn_3)
+                tf.summary.scalar('true_negatives_4', tn_4)
+                tf.summary.scalar('true_negatives_5', tn_5)
+                tf.summary.scalar('true_negatives_6', tn_6)
 
             with tf.name_scope('false_positives'):
                 tf.summary.scalar('false_positives_0', fp_0)
