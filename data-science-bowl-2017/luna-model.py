@@ -478,25 +478,25 @@ def train_3d_nn():
                 tf.summary.scalar('softmax_cross_entropy_6', softmax_cross_entropy_6)
 
             with tf.name_scope('accuracy_by_class'):
-                correct_prediction_0 = tf.equal(tf.argmax(y[0], 1), tf.argmax(y_labels[0], 1))
+                correct_prediction_0 = tf.equal(y[0], y_labels[0])
                 accuracy_0 = tf.reduce_mean(tf.cast(correct_prediction_0, "float"))
 
-                correct_prediction_1 = tf.equal(tf.argmax(y[1], 1), tf.argmax(y_labels[1], 1))
+                correct_prediction_1 = tf.equal(y[1], y_labels[1])
                 accuracy_1 = tf.reduce_mean(tf.cast(correct_prediction_1, "float"))
 
-                correct_prediction_2 = tf.equal(tf.argmax(y[2], 1), tf.argmax(y_labels[2], 1))
+                correct_prediction_2 = tf.equal(y[2], y_labels[2])
                 accuracy_2 = tf.reduce_mean(tf.cast(correct_prediction_2, "float"))
 
-                correct_prediction_3 = tf.equal(tf.argmax(y[3], 1), tf.argmax(y_labels[3], 1))
+                correct_prediction_3 = tf.equal(y[3], y_labels[3])
                 accuracy_3 = tf.reduce_mean(tf.cast(correct_prediction_3, "float"))
 
-                correct_prediction_4 = tf.equal(tf.argmax(y[4], 1), tf.argmax(y_labels[4], 1))
+                correct_prediction_4 = tf.equal(y[4], y_labels[4])
                 accuracy_4 = tf.reduce_mean(tf.cast(correct_prediction_4, "float"))
 
-                correct_prediction_5 = tf.equal(tf.argmax(y[5], 1), tf.argmax(y_labels[5], 1))
+                correct_prediction_5 = tf.equal(y[5], y_labels[5])
                 accuracy_5 = tf.reduce_mean(tf.cast(correct_prediction_5, "float"))
 
-                correct_prediction_6 = tf.equal(tf.argmax(y[6], 1), tf.argmax(y_labels[6], 1))
+                correct_prediction_6 = tf.equal(y[6], y_labels[6])
                 accuracy_6 = tf.reduce_mean(tf.cast(correct_prediction_6, "float"))
 
                 tf.summary.scalar('accuracy_0', accuracy_0)
@@ -524,7 +524,7 @@ def train_3d_nn():
                 tf.summary.scalar('weighted_log_loss_4', weighted_log_loss_4)
                 tf.summary.scalar('weighted_log_loss_5', weighted_log_loss_5)
                 tf.summary.scalar('weighted_log_loss_6', weighted_log_loss_6)
-            
+
             optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
 
         merged = tf.summary.merge_all()
