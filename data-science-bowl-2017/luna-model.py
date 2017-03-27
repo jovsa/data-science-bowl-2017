@@ -120,7 +120,7 @@ def get_batch(x, y, batch_size, PATH):
     x_batch_ids = x[idx]
     y_batch = y[idx]
 
-    x_batch = np.ndarray([batch_size, 64, 64, 64, 1], dtype=np.float32)
+    x_batch = np.ndarray([batch_size, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
 
     count = 0
     for chunk_id in x_batch_ids:
@@ -148,7 +148,7 @@ def train_3d_nn():
     def predict_prob_validation(validation_x_ids, labels, write_to_tensorboard=False):
         num_images = len(validation_x_ids)
 
-        validation_x = np.ndarray([num_images, 64, 64, 64, 1], dtype=np.float32)
+        validation_x = np.ndarray([num_images, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
 
         count = 0
         for chunk_id in validation_x_ids:
@@ -217,65 +217,79 @@ def train_3d_nn():
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
-        model_name = 'convnet3D_v0.1'
+        model_name = 'vgg16_v0.1'
         with tf.name_scope(model_name):
-            x = tf.placeholder(tf.float32, shape=[None, 64, 64, 64, 1], name = 'x')
+            x = tf.placeholder(tf.float32, shape=[None, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], name = 'x')
             y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
             y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
-            class_weights2 = tf.ones_like(y_labels)
-            class_weights = tf.multiply(class_weights2 , [1000/40511.0, 1000/240.0, 1000/14380.0, 1000/7555.0, 1000/2935.0, 1000/1575.0, 1000/2640.0])
+            class_weights_base = tf.ones_like(y_labels)
+            class_weights = tf.multiply(class_weights_base , [1000/40513.0, 1000/14620.0, 1000/10490.0, 1000/4125.0])
 
-            layer1_conv3d_out, layer1_conv3d_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16,
-                                                              num_channels = 1, strides = [1, 3, 3, 3, 1],
-                                                              name ='layer1_conv3d')
-            print(layer1_conv3d_out)
-            layer1_maxpool3d_out = max_pool_3d(inputs = layer1_conv3d_out, filter_size = [1, 2, 2, 2, 1],
-                                               strides = [1, 2, 2, 2, 1], name ='layer1_maxpool3d')
+            layer1_1_out, layer1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 64,
+                                                              num_channels = 1, strides = [1, 1, 1, 1, 1],
+                                                              name ='layer1_1')
+            print(layer1_1_out)
+
+            layer1_2_out, layer1_2_weights = conv3d(inputs = layer1_1_out, filter_size = 3, num_filters = 64,
+                                                              num_channels = 64, strides = [1, 1, 1, 1, 1],
+                                                              name ='layer1_2')
+            print(layer1_2_out)
+
+            pool1_out = max_pool_3d(inputs = layer1_2_out, filter_size = [1, 2, 2, 2, 1],
+                                                        strides = [1, 2, 2, 2, 1], name ='pool1')
+            print(pool1_out)
 
 
-            print(layer1_maxpool3d_out)
-            layer2_conv3d_out, layer2_conv3d_weights = conv3d(inputs = layer1_maxpool3d_out, filter_size = 3,
-                                                              num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1],
-                                                              name ='layer2_conv3d')
 
-            print(layer2_conv3d_out)
-            layer2_maxpool3d_out = max_pool_3d(inputs = layer2_conv3d_out, filter_size = [1, 2, 2, 2, 1],
-                                               strides = [1, 2, 2, 2, 1], name ='layer2_maxpool3d')
 
-            print(layer2_maxpool3d_out)
-            layer3_conv3d_out, layer3_conv3d_weights = conv3d(inputs = layer2_maxpool3d_out, filter_size = 3,
-                                                              num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1],
-                                                              name = 'layer3_conv3d')
-            print(layer3_conv3d_out)
 
-            layer3_maxpool3d_out = max_pool_3d(inputs = layer3_conv3d_out, filter_size = [1, 2, 2, 2, 1],
-                                               strides = [1, 2, 2, 2, 1], name = 'layer3_maxpool3d')
-            print(layer3_maxpool3d_out)
-
-            layer3_dropout3d_out = dropout_3d(layer3_maxpool3d_out, 0.25, 'layer3_dropout3d')
-            print(layer3_dropout3d_out)
-
-            layer3_flatten3d_out, layer3_flatten3d_features = flatten_3d(layer3_dropout3d_out)
-            print(layer3_flatten3d_out)
-
-            layer4_dense3d_out = dense_3d(inputs=layer3_flatten3d_out, num_inputs=int(layer3_flatten3d_out.shape[1]),
-                                         num_outputs=512, name ='layer4_dense3d')
-            print(layer4_dense3d_out)
-
-            # Save transfer_values = layer4_dense3d_out on prediction
-            layer4_dropout3d_out = dropout_3d(layer4_dense3d_out, 0.5, 'layer4_dropout3d')
-            print(layer4_dropout3d_out)
-
-            layer5_dense3d_out = dense_3d(inputs=layer4_dropout3d_out, num_inputs=int(layer4_dropout3d_out.shape[1]),
-                                         num_outputs=128, name ='layer5_dense3d')
-            print(layer5_dense3d_out)
-
-            layer5_dropout3d_out = dropout_3d(layer5_dense3d_out, 0.5, 'layer5_dropout3d')
-            print(layer5_dropout3d_out)
-
-            layer6_dense3d_out = dense_3d(inputs=layer5_dropout3d_out, num_inputs=int(layer5_dropout3d_out.shape[1]),
-                                         num_outputs=7, name ='layer6_dense3d')
-            print(layer6_dense3d_out)
+            # layer1_maxpool3d_out = max_pool_3d(inputs = layer1_conv3d_out, filter_size = [1, 2, 2, 2, 1],
+            #                                    strides = [1, 2, 2, 2, 1], name ='layer1_maxpool3d')
+            #
+            #
+            # print(layer1_maxpool3d_out)
+            # layer2_conv3d_out, layer2_conv3d_weights = conv3d(inputs = layer1_maxpool3d_out, filter_size = 3,
+            #                                                   num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1],
+            #                                                   name ='layer2_conv3d')
+            #
+            # print(layer2_conv3d_out)
+            # layer2_maxpool3d_out = max_pool_3d(inputs = layer2_conv3d_out, filter_size = [1, 2, 2, 2, 1],
+            #                                    strides = [1, 2, 2, 2, 1], name ='layer2_maxpool3d')
+            #
+            # print(layer2_maxpool3d_out)
+            # layer3_conv3d_out, layer3_conv3d_weights = conv3d(inputs = layer2_maxpool3d_out, filter_size = 3,
+            #                                                   num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1],
+            #                                                   name = 'layer3_conv3d')
+            # print(layer3_conv3d_out)
+            #
+            # layer3_maxpool3d_out = max_pool_3d(inputs = layer3_conv3d_out, filter_size = [1, 2, 2, 2, 1],
+            #                                    strides = [1, 2, 2, 2, 1], name = 'layer3_maxpool3d')
+            # print(layer3_maxpool3d_out)
+            #
+            # layer3_dropout3d_out = dropout_3d(layer3_maxpool3d_out, 0.25, 'layer3_dropout3d')
+            # print(layer3_dropout3d_out)
+            #
+            # layer3_flatten3d_out, layer3_flatten3d_features = flatten_3d(layer3_dropout3d_out)
+            # print(layer3_flatten3d_out)
+            #
+            # layer4_dense3d_out = dense_3d(inputs=layer3_flatten3d_out, num_inputs=int(layer3_flatten3d_out.shape[1]),
+            #                              num_outputs=512, name ='layer4_dense3d')
+            # print(layer4_dense3d_out)
+            #
+            # # Save transfer_values = layer4_dense3d_out on prediction
+            # layer4_dropout3d_out = dropout_3d(layer4_dense3d_out, 0.5, 'layer4_dropout3d')
+            # print(layer4_dropout3d_out)
+            #
+            # layer5_dense3d_out = dense_3d(inputs=layer4_dropout3d_out, num_inputs=int(layer4_dropout3d_out.shape[1]),
+            #                              num_outputs=128, name ='layer5_dense3d')
+            # print(layer5_dense3d_out)
+            #
+            # layer5_dropout3d_out = dropout_3d(layer5_dense3d_out, 0.5, 'layer5_dropout3d')
+            # print(layer5_dropout3d_out)
+            #
+            # layer6_dense3d_out = dense_3d(inputs=layer5_dropout3d_out, num_inputs=int(layer5_dropout3d_out.shape[1]),
+            #                              num_outputs=7, name ='layer6_dense3d')
+            # print(layer6_dense3d_out)
 
             y = tf.nn.softmax(layer6_dense3d_out)
             print(y)
@@ -547,6 +561,7 @@ def train_3d_nn():
         print('Pre-train validation recall: {0:.5}'.format(pre_train_rec))
 
         for i in tqdm(range(FLAGS.max_iterations)):
+
             x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size, DATA_PATH)
             _, step_summary = sess.run([optimizer, merged],
                                                 feed_dict={x: x_batch, y_labels: y_batch})
@@ -580,7 +595,9 @@ if __name__ == '__main__':
     FLAGS = tf.app.flags.FLAGS
 
     ## Prediction problem specific
-    tf.app.flags.DEFINE_integer('num_classes', 7,
+    tf.app.flags.DEFINE_integer('chunk_size', 48,
+                                """Size of chunks used.""")
+    tf.app.flags.DEFINE_integer('num_classes', 4,
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('batch_size', 32,
                                 """Number of items in a batch.""")
