@@ -111,7 +111,7 @@ def dense_3d(inputs,
     weights = tf.Variable(tf.truncated_normal([num_inputs, num_outputs], dtype=tf.float32, stddev=1e-1), name= name + '_weights')
     biases = tf.Variable(tf.constant(0.0, shape=[num_outputs], dtype=tf.float32), name= name + '_biases')
     layer = tf.matmul(inputs, weights) + biases
-    return out
+    return layer
 
 
 def get_batch(x, y, batch_size, PATH):
@@ -285,10 +285,10 @@ def train_3d_nn():
             relu5_3_out = relu_3d(inputs = conv5_3_out, name='relu5_3')
 
             pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool5')
+            flatten5_out, flatten5_features = flatten_3d(pool5_out)
 
             # layer6
-            print('pool5_out.shape', pool5_out.shape)
-            dense6_out = dense_3d(inputs=pool5_out, num_inputs=int(pool5_out.shape[1]), num_outputs=4096, name ='fc6')
+            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, name ='fc6')
             relu6_out = relu_3d(inputs = dense6_out, name='relu6')
             dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, name='drop6')
 
@@ -301,7 +301,7 @@ def train_3d_nn():
             dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
 
             # layer9
-            dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAG.num_classes, name ='fc9')
+            dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
 
             # Final softmax
             y = tf.nn.softmax(dense9_out)
@@ -312,7 +312,7 @@ def train_3d_nn():
                 tf.summary.scalar('log_loss', log_loss)
 
             with tf.name_scope('softmax_cross_entropy'):
-                softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, layer6_dense3d_out)
+                softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out)
                 tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)
 
             with tf.name_scope('accuracy'):
@@ -438,10 +438,10 @@ def train_3d_nn():
                 tf.summary.scalar('log_loss__3', log_loss_3)
 
             with tf.name_scope('softmax_cross_entropy_by_class'):
-                softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], layer6_dense3d_out[0])
-                softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], layer6_dense3d_out[1])
-                softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], layer6_dense3d_out[2])
-                softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], layer6_dense3d_out[3])
+                softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], dense9_out[0])
+                softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], dense9_out[1])
+                softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], dense9_out[2])
+                softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], dense9_out[3])
 
                 tf.summary.scalar('softmax_cross_entropy_0', softmax_cross_entropy_0)
                 tf.summary.scalar('softmax_cross_entropy_1', softmax_cross_entropy_1)
