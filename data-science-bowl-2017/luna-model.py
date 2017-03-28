@@ -225,19 +225,26 @@ def train_3d_nn():
             class_weights_base = tf.ones_like(y_labels)
             class_weights = tf.multiply(class_weights_base , [1000/40513.0, 1000/14620.0, 1000/10490.0, 1000/4125.0])
 
-            layer1_1_out, layer1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 64,
+            conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 64,
                                                               num_channels = 1, strides = [1, 1, 1, 1, 1],
-                                                              name ='layer1_1')
-            print(layer1_1_out)
+                                                              name ='conv1_1')
+            print(conv1_1_out)
 
-            layer1_2_out, layer1_2_weights = conv3d(inputs = layer1_1_out, filter_size = 3, num_filters = 64,
+            conv1_2_out, conv1_2_weights = conv3d(inputs = conv1_1_out, filter_size = 3, num_filters = 64,
                                                               num_channels = 64, strides = [1, 1, 1, 1, 1],
-                                                              name ='layer1_2')
-            print(layer1_2_out)
+                                                              name ='conv1_2')
+            print(conv1_2_out)
 
-            pool1_out = max_pool_3d(inputs = layer1_2_out, filter_size = [1, 2, 2, 2, 1],
+            pool1_out = max_pool_3d(inputs = conv1_2_out, filter_size = [1, 2, 2, 2, 1],
                                                         strides = [1, 2, 2, 2, 1], name ='pool1')
             print(pool1_out)
+
+            conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 128,
+                                                              num_channels = 64, strides = [1, 1, 1, 1, 1],
+                                                              name ='conv1_2')
+            print(conv2_1_out)
+
+
 
 
 
