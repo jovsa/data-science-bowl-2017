@@ -248,7 +248,7 @@ def train_3d_nn():
             conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 1, 1, 1, 1], name ='conv2_2')
             relu2_2_out = relu_3d(inputs = conv2_2_out, name='relu2_2')
 
-            pool2_out = max_pool_3d(inputs = conv2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool2')
+            pool2_out = max_pool_3d(inputs = relu2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool2')
 
             # layer3
             conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 1, 1, 1, 1], name ='conv3_1')
@@ -270,9 +270,9 @@ def train_3d_nn():
             relu4_2_out = relu_3d(inputs = conv4_2_out, name='relu4_2')
 
             conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_3')
-            relu4_2_out = relu_3d(inputs = conv4_3_out, name='relu4_3')
+            relu4_3_out = relu_3d(inputs = conv4_3_out, name='relu4_3')
 
-            pool4_out = max_pool_3d(inputs = relu4_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool4')
+            pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool4')
 
             # layer5
             conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_1')
@@ -289,17 +289,17 @@ def train_3d_nn():
             # layer6
             dense6_out = dense_3d(inputs=pool5_out, num_inputs=int(pool5_out.shape[1]), num_outputs=4096, name ='dense6')
             relu6_out = relu_3d(inputs = dense6_out, name='relu6')
-            dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, name='droupout6')
+            dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, name='dropout6')
 
             # layer7
             dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=1000, name ='dense7')
             relu7_out = relu_3d(inputs = dense7_out, name='relu7')
-            dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, name='droupout7')
+            dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, name='dropout7')
 
             # layer8
             dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=FLAGS.num_classes, name ='dense8')
             relu8_out = relu_3d(inputs = dense8_out, name='relu8')
-            dropout8_out = dropout_3d(inputs = relu8_out, keep_prob = 0.5, name='droupout8')
+            dropout8_out = dropout_3d(inputs = relu8_out, keep_prob = 0.5, name='dropout8')
 
             # Final softmax
             y = tf.nn.softmax(dropout8_out)
