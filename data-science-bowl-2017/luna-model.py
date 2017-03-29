@@ -233,72 +233,37 @@ def train_3d_nn():
             class_weights = tf.multiply(class_weights_base , [1000/40513.0, 1000/14620.0, 1000/10490.0, 1000/4125.0])
 
             # layer1
-            conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 32, num_channels = 1, strides = [1, 3, 3, 3, 1], name ='conv1_1')
+            conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 64, num_channels = 1, strides = [1, 3, 3, 3, 1], name ='conv1_1')
             relu1_1_out = relu_3d(inputs = conv1_1_out, name='relu1_1')
-
-            #conv1_2_out, conv1_2_weights = conv3d(inputs = relu1_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], name ='conv1_2')
-            #relu1_2_out = relu_3d(inputs = conv1_2_out, name='relu1_2')
 
             pool1_out = max_pool_3d(inputs = relu1_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool1')
 
             # layer2
-            conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1], name ='conv2_1')
+            conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], name ='conv2_1')
             relu2_1_out = relu_3d(inputs = conv2_1_out, name='relu2_1')
-
-            #conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], name ='conv2_2')
-            #relu2_2_out = relu_3d(inputs = conv2_2_out, name='relu2_2')
 
             pool2_out = max_pool_3d(inputs = relu2_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool2')
 
             # layer3
-            conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], name ='conv3_1')
+            conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 3, 3, 3, 1], name ='conv3_1')
             relu3_1_out = relu_3d(inputs = conv3_1_out, name='relu3_1')
-
-            #conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], name ='conv3_2')
-            #relu3_2_out = relu_3d(inputs = conv3_2_out, name='relu3_2')
-
-            #conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], name ='conv3_3')
-            #relu3_3_out = relu_3d(inputs = conv3_3_out, name='relu3_3')
 
             pool3_out = max_pool_3d(inputs = relu3_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool3')
 
-            # layer4
-            #conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 512, num_channels = 256, strides = [1, 1, 1, 1, 1], name ='conv4_1')
-            #relu4_1_out = relu_3d(inputs = conv4_1_out, name='relu4_1')
-
-            #conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_2')
-            #relu4_2_out = relu_3d(inputs = conv4_2_out, name='relu4_2')
-
-            #conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_3')
-            #relu4_3_out = relu_3d(inputs = conv4_3_out, name='relu4_3')
-
-            #pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool4')
-
-            # layer5
-            #conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_1')
-            #relu5_1_out = relu_3d(inputs = conv5_1_out, name='relu5_1')
-
-            #conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_2')
-            #relu5_2_out = relu_3d(inputs = conv5_2_out, name='relu5_2')
-
-            #conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_3')
-            #relu5_3_out = relu_3d(inputs = conv5_3_out, name='relu5_3')
-
-            #pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool5')
             flatten5_out, flatten5_features = flatten_3d(pool3_out)
 
             # layer6
-            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, name ='fc6')
+            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=2048, name ='fc6')
             relu6_out = relu_3d(inputs = dense6_out, name='relu6')
             dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, name='drop6')
 
             # layer7
-            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, name ='fc7')
+            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=2048, name ='fc7')
             relu7_out = relu_3d(inputs = dense7_out, name='relu7')
             dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, name='drop7')
 
             # layer8
-            dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
+            dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=512, name ='fc8')
 
             # layer9
             dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
