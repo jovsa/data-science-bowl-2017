@@ -50,7 +50,7 @@ def get_ids(PATH):
 
 def get_data(chunk_ids, PATH):
     X = np.asarray(chunk_ids)
-    Y = np.ndarray([len(chunk_ids), 7], dtype=np.float32)
+    Y = np.ndarray([len(chunk_ids), FLAGS.num_classes], dtype=np.float32)
 
     count = 0
     for chunk_id in chunk_ids:
@@ -77,19 +77,17 @@ def conv3d(inputs,             # The previous layer.
     conv = tf.nn.conv3d(inputs, filters, strides, padding='SAME', name=name)
     biases = tf.Variable(tf.constant(0.0, shape=[num_filters], dtype=tf.float32), name= name + '_biases')
     out = tf.nn.bias_add(conv, biases)
-
-    out = tf.nn.relu(out)
     return out, filters
 
 def max_pool_3d(inputs,
-                filter_size,  # [1, 2, 2, 2, 1]
-                strides,      # [1, 2, 2, 2, 1]
+                filter_size,
+                strides,
                 name):
     return tf.nn.max_pool3d(inputs,
-                               ksize=filter_size,
-                               strides=strides,
-                               padding='SAME',
-                               name= name)
+                            ksize=filter_size,
+                            strides=strides,
+                            padding='SAME',
+                            name= name)
 
 def dropout_3d(inputs,
                keep_prob,
@@ -102,6 +100,10 @@ def flatten_3d(layer):
     layer_flat = tf.reshape(layer, [-1, num_features])
     return layer_flat, num_features
 
+def relu_3d(inputs,
+            name):
+    return tf.nn.relu(inputs, name=name)
+
 def dense_3d(inputs,
              num_inputs,
              num_outputs,
@@ -109,8 +111,8 @@ def dense_3d(inputs,
     weights = tf.Variable(tf.truncated_normal([num_inputs, num_outputs], dtype=tf.float32, stddev=1e-1), name= name + '_weights')
     biases = tf.Variable(tf.constant(0.0, shape=[num_outputs], dtype=tf.float32), name= name + '_biases')
     layer = tf.matmul(inputs, weights) + biases
-    layer = tf.nn.relu(layer)
     return layer
+
 
 def get_batch(x, y, batch_size, PATH):
     num_images = len(x)
@@ -195,6 +197,8 @@ def train_3d_nn():
     chunks_ids = get_ids(DATA_PATH)
     X, Y = get_data(chunks_ids, DATA_PATH)
 
+    Y = np.argmax(Y, axis = 1)
+
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
     print('Splitting into train, validation sets')
@@ -211,6 +215,9 @@ def train_3d_nn():
     print('train_y: {}'.format(train_y.shape))
     print('validation_y: {}'.format(validation_y.shape))
 
+    train_y = (np.arange(FLAGS.num_classes) == train_y[:, None])+0
+    validation_y = (np.arange(FLAGS.num_classes) == validation_y[:, None])+0
+
     # Seed numpy random to generate identical random numbers every time (used in batching)
     np.random.seed(42)
 
@@ -225,74 +232,79 @@ def train_3d_nn():
             class_weights_base = tf.ones_like(y_labels)
             class_weights = tf.multiply(class_weights_base , [1000/40513.0, 1000/14620.0, 1000/10490.0, 1000/4125.0])
 
-            layer1_1_out, layer1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 64,
-                                                              num_channels = 1, strides = [1, 1, 1, 1, 1],
-                                                              name ='layer1_1')
-            print(layer1_1_out)
+            # layer1
+            conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 64, num_channels = 1, strides = [1, 1, 1, 1, 1], name ='conv1_1')
+            relu1_1_out = relu_3d(inputs = conv1_1_out, name='relu1_1')
 
-            layer1_2_out, layer1_2_weights = conv3d(inputs = layer1_1_out, filter_size = 3, num_filters = 64,
-                                                              num_channels = 64, strides = [1, 1, 1, 1, 1],
-                                                              name ='layer1_2')
-            print(layer1_2_out)
+            conv1_2_out, conv1_2_weights = conv3d(inputs = relu1_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 1, 1, 1, 1], name ='conv1_2')
+            relu1_2_out = relu_3d(inputs = conv1_2_out, name='relu1_2')
 
-            pool1_out = max_pool_3d(inputs = layer1_2_out, filter_size = [1, 2, 2, 2, 1],
-                                                        strides = [1, 2, 2, 2, 1], name ='pool1')
-            print(pool1_out)
+            pool1_out = max_pool_3d(inputs = relu1_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool1')
 
+            # layer2
+            conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 1, 1, 1, 1], name ='conv2_1')
+            relu2_1_out = relu_3d(inputs = conv2_1_out, name='relu2_1')
 
+            conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 1, 1, 1, 1], name ='conv2_2')
+            relu2_2_out = relu_3d(inputs = conv2_2_out, name='relu2_2')
 
+            pool2_out = max_pool_3d(inputs = relu2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool2')
 
+            # layer3
+            conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 1, 1, 1, 1], name ='conv3_1')
+            relu3_1_out = relu_3d(inputs = conv3_1_out, name='relu3_1')
 
-            # layer1_maxpool3d_out = max_pool_3d(inputs = layer1_conv3d_out, filter_size = [1, 2, 2, 2, 1],
-            #                                    strides = [1, 2, 2, 2, 1], name ='layer1_maxpool3d')
-            #
-            #
-            # print(layer1_maxpool3d_out)
-            # layer2_conv3d_out, layer2_conv3d_weights = conv3d(inputs = layer1_maxpool3d_out, filter_size = 3,
-            #                                                   num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1],
-            #                                                   name ='layer2_conv3d')
-            #
-            # print(layer2_conv3d_out)
-            # layer2_maxpool3d_out = max_pool_3d(inputs = layer2_conv3d_out, filter_size = [1, 2, 2, 2, 1],
-            #                                    strides = [1, 2, 2, 2, 1], name ='layer2_maxpool3d')
-            #
-            # print(layer2_maxpool3d_out)
-            # layer3_conv3d_out, layer3_conv3d_weights = conv3d(inputs = layer2_maxpool3d_out, filter_size = 3,
-            #                                                   num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1],
-            #                                                   name = 'layer3_conv3d')
-            # print(layer3_conv3d_out)
-            #
-            # layer3_maxpool3d_out = max_pool_3d(inputs = layer3_conv3d_out, filter_size = [1, 2, 2, 2, 1],
-            #                                    strides = [1, 2, 2, 2, 1], name = 'layer3_maxpool3d')
-            # print(layer3_maxpool3d_out)
-            #
-            # layer3_dropout3d_out = dropout_3d(layer3_maxpool3d_out, 0.25, 'layer3_dropout3d')
-            # print(layer3_dropout3d_out)
-            #
-            # layer3_flatten3d_out, layer3_flatten3d_features = flatten_3d(layer3_dropout3d_out)
-            # print(layer3_flatten3d_out)
-            #
-            # layer4_dense3d_out = dense_3d(inputs=layer3_flatten3d_out, num_inputs=int(layer3_flatten3d_out.shape[1]),
-            #                              num_outputs=512, name ='layer4_dense3d')
-            # print(layer4_dense3d_out)
-            #
-            # # Save transfer_values = layer4_dense3d_out on prediction
-            # layer4_dropout3d_out = dropout_3d(layer4_dense3d_out, 0.5, 'layer4_dropout3d')
-            # print(layer4_dropout3d_out)
-            #
-            # layer5_dense3d_out = dense_3d(inputs=layer4_dropout3d_out, num_inputs=int(layer4_dropout3d_out.shape[1]),
-            #                              num_outputs=128, name ='layer5_dense3d')
-            # print(layer5_dense3d_out)
-            #
-            # layer5_dropout3d_out = dropout_3d(layer5_dense3d_out, 0.5, 'layer5_dropout3d')
-            # print(layer5_dropout3d_out)
-            #
-            # layer6_dense3d_out = dense_3d(inputs=layer5_dropout3d_out, num_inputs=int(layer5_dropout3d_out.shape[1]),
-            #                              num_outputs=7, name ='layer6_dense3d')
-            # print(layer6_dense3d_out)
+            conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 1, 1, 1, 1], name ='conv3_2')
+            relu3_2_out = relu_3d(inputs = conv3_2_out, name='relu3_2')
 
-            y = tf.nn.softmax(layer6_dense3d_out)
-            print(y)
+            conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 1, 1, 1, 1], name ='conv3_3')
+            relu3_3_out = relu_3d(inputs = conv3_3_out, name='relu3_3')
+
+            pool3_out = max_pool_3d(inputs = relu3_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool3')
+
+            # layer4
+            conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 512, num_channels = 256, strides = [1, 1, 1, 1, 1], name ='conv4_1')
+            relu4_1_out = relu_3d(inputs = conv4_1_out, name='relu4_1')
+
+            conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_2')
+            relu4_2_out = relu_3d(inputs = conv4_2_out, name='relu4_2')
+
+            conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_3')
+            relu4_3_out = relu_3d(inputs = conv4_3_out, name='relu4_3')
+
+            pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool4')
+
+            # layer5
+            conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_1')
+            relu5_1_out = relu_3d(inputs = conv5_1_out, name='relu5_1')
+
+            conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_2')
+            relu5_2_out = relu_3d(inputs = conv5_2_out, name='relu5_2')
+
+            conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_3')
+            relu5_3_out = relu_3d(inputs = conv5_3_out, name='relu5_3')
+
+            pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool5')
+            flatten5_out, flatten5_features = flatten_3d(pool5_out)
+
+            # layer6
+            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, name ='fc6')
+            relu6_out = relu_3d(inputs = dense6_out, name='relu6')
+            dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, name='drop6')
+
+            # layer7
+            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, name ='fc7')
+            relu7_out = relu_3d(inputs = dense7_out, name='relu7')
+            dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, name='drop7')
+
+            # layer8
+            dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
+
+            # layer9
+            dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
+
+            # Final softmax
+            y = tf.nn.softmax(dense9_out)
 
             # Overall Metrics Calculations
             with tf.name_scope('log_loss'):
@@ -300,7 +312,7 @@ def train_3d_nn():
                 tf.summary.scalar('log_loss', log_loss)
 
             with tf.name_scope('softmax_cross_entropy'):
-                softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, layer6_dense3d_out)
+                softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out)
                 tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)
 
             with tf.name_scope('accuracy'):
@@ -322,17 +334,12 @@ def train_3d_nn():
             sum_row_1 = tf.reduce_sum(confusion_matrix[1, :])
             sum_row_2 = tf.reduce_sum(confusion_matrix[2, :])
             sum_row_3 = tf.reduce_sum(confusion_matrix[3, :])
-            sum_row_4 = tf.reduce_sum(confusion_matrix[4, :])
-            sum_row_5 = tf.reduce_sum(confusion_matrix[5, :])
-            sum_row_6 = tf.reduce_sum(confusion_matrix[6, :])
 
             sum_col_0 = tf.reduce_sum(confusion_matrix[:, 0])
             sum_col_1 = tf.reduce_sum(confusion_matrix[:, 1])
             sum_col_2 = tf.reduce_sum(confusion_matrix[:, 2])
             sum_col_3 = tf.reduce_sum(confusion_matrix[:, 3])
-            sum_col_4 = tf.reduce_sum(confusion_matrix[:, 4])
-            sum_col_5 = tf.reduce_sum(confusion_matrix[:, 5])
-            sum_col_6 = tf.reduce_sum(confusion_matrix[:, 6])
+
 
             sum_all = tf.reduce_sum(confusion_matrix[:, :])
 
@@ -341,32 +348,24 @@ def train_3d_nn():
                 precision_1 = confusion_matrix[1,1] / sum_col_1
                 precision_2 = confusion_matrix[2,2] / sum_col_2
                 precision_3 = confusion_matrix[3,3] / sum_col_3
-                precision_4 = confusion_matrix[4,4] / sum_col_4
-                precision_5 = confusion_matrix[5,5] / sum_col_5
-                precision_6 = confusion_matrix[6,6] / sum_col_6
+
                 tf.summary.scalar('precision_0', precision_0)
                 tf.summary.scalar('precision_1', precision_1)
                 tf.summary.scalar('precision_2', precision_2)
                 tf.summary.scalar('precision_3', precision_3)
-                tf.summary.scalar('precision_4', precision_4)
-                tf.summary.scalar('precision_5', precision_5)
-                tf.summary.scalar('precision_6', precision_6)
+
 
             with tf.name_scope('recall'):
                 recall_0 = confusion_matrix[0,0] / sum_row_0
                 recall_1 = confusion_matrix[1,1] / sum_row_1
                 recall_2 = confusion_matrix[2,2] / sum_row_2
                 recall_3 = confusion_matrix[3,3] / sum_row_3
-                recall_4 = confusion_matrix[4,4] / sum_row_4
-                recall_5 = confusion_matrix[5,5] / sum_row_5
-                recall_6 = confusion_matrix[6,6] / sum_row_6
+
                 tf.summary.scalar('recall_0', recall_0)
                 tf.summary.scalar('recall_1', recall_1)
                 tf.summary.scalar('recall_2', recall_2)
                 tf.summary.scalar('recall_3', recall_3)
-                tf.summary.scalar('recall_4', recall_4)
-                tf.summary.scalar('recall_5', recall_5)
-                tf.summary.scalar('recall_6', recall_6)
+
 
             with tf.name_scope('specificity'):
                 tn_0 = sum_all - (sum_row_0 + sum_col_0 - confusion_matrix[0,0])
@@ -385,112 +384,70 @@ def train_3d_nn():
                 fp_3 = sum_col_3 - confusion_matrix[3,3]
                 specificity_3 = tn_3 / (tn_3 + fp_3)
 
-                tn_4 = sum_all - (sum_row_4 + sum_col_4 - confusion_matrix[4,4])
-                fp_4 = sum_col_4 - confusion_matrix[4,4]
-                specificity_4 = tn_4 / (tn_4 + fp_4)
-
-                tn_5 = sum_all - (sum_row_5 + sum_col_5 - confusion_matrix[5,5])
-                fp_5 = sum_col_5 - confusion_matrix[5,5]
-                specificity_5 = tn_5 / (tn_5 + fp_5)
-
-                tn_6 = sum_all - (sum_row_6 + sum_col_6 - confusion_matrix[6,6])
-                fp_6 = sum_col_6 - confusion_matrix[6,6]
-                specificity_6 = tn_6 / (tn_6 + fp_6)
 
                 tf.summary.scalar('specificity_0', specificity_0)
                 tf.summary.scalar('specificity_1', specificity_1)
                 tf.summary.scalar('specificity_2', specificity_2)
                 tf.summary.scalar('specificity_3', specificity_3)
-                tf.summary.scalar('specificity_4', specificity_4)
-                tf.summary.scalar('specificity_5', specificity_5)
-                tf.summary.scalar('specificity_6', specificity_6)
+
 
             with tf.name_scope('true_positives'):
                 tp_0 = confusion_matrix[0,0]
                 tp_1 = confusion_matrix[1,1]
                 tp_2 = confusion_matrix[2,2]
                 tp_3 = confusion_matrix[3,3]
-                tp_4 = confusion_matrix[4,4]
-                tp_5 = confusion_matrix[5,5]
-                tp_6 = confusion_matrix[6,6]
 
                 tf.summary.scalar('true_positives_0', tp_0)
                 tf.summary.scalar('true_positives_1', tp_1)
                 tf.summary.scalar('true_positives_2', tp_2)
                 tf.summary.scalar('true_positives_3', tp_3)
-                tf.summary.scalar('true_positives_4', tp_4)
-                tf.summary.scalar('true_positives_5', tp_5)
-                tf.summary.scalar('true_positives_6', tp_6)
 
             with tf.name_scope('true_negatives'):
                 tf.summary.scalar('true_negatives_0', tn_0)
                 tf.summary.scalar('true_negatives_1', tn_1)
                 tf.summary.scalar('true_negatives_2', tn_2)
                 tf.summary.scalar('true_negatives_3', tn_3)
-                tf.summary.scalar('true_negatives_4', tn_4)
-                tf.summary.scalar('true_negatives_5', tn_5)
-                tf.summary.scalar('true_negatives_6', tn_6)
 
             with tf.name_scope('false_positives'):
                 tf.summary.scalar('false_positives_0', fp_0)
                 tf.summary.scalar('false_positives_1', fp_1)
                 tf.summary.scalar('false_positives_2', fp_2)
                 tf.summary.scalar('false_positives_3', fp_3)
-                tf.summary.scalar('false_positives_4', fp_4)
-                tf.summary.scalar('false_positives_5', fp_5)
-                tf.summary.scalar('false_positives_6', fp_6)
 
             with tf.name_scope('false_negatives'):
                 fn_0 = sum_row_0 - tp_0
                 fn_1 = sum_row_1 - tp_1
                 fn_2 = sum_row_2 - tp_2
                 fn_3 = sum_row_3 - tp_3
-                fn_4 = sum_row_4 - tp_4
-                fn_5 = sum_row_5 - tp_5
-                fn_6 = sum_row_6 - tp_6
 
                 tf.summary.scalar('false_negatives_0', fn_0)
                 tf.summary.scalar('false_negatives_1', fn_1)
                 tf.summary.scalar('false_negatives_2', fn_2)
                 tf.summary.scalar('false_negatives_3', fn_3)
-                tf.summary.scalar('false_negatives_4', fn_4)
-                tf.summary.scalar('false_negatives_5', fn_5)
-                tf.summary.scalar('false_negatives_6', fn_6)
 
             with tf.name_scope('log_loss_by_class'):
                 log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], epsilon=10e-15)
                 log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], epsilon=10e-15)
                 log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], epsilon=10e-15)
                 log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], epsilon=10e-15)
-                log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], epsilon=10e-15)
-                log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], epsilon=10e-15)
-                log_loss_6 = tf.losses.log_loss(y_labels[6], y[6], epsilon=10e-15)
 
                 #added extra '_' to avoid tenosorboard name collision with the main log_loss metric
                 tf.summary.scalar('log_loss__0', log_loss_0)
                 tf.summary.scalar('log_loss__1', log_loss_1)
                 tf.summary.scalar('log_loss__2', log_loss_2)
                 tf.summary.scalar('log_loss__3', log_loss_3)
-                tf.summary.scalar('log_loss__4', log_loss_4)
-                tf.summary.scalar('log_loss__5', log_loss_5)
-                tf.summary.scalar('log_loss__6', log_loss_6)
 
             with tf.name_scope('softmax_cross_entropy_by_class'):
-                softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], layer6_dense3d_out[0])
-                softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], layer6_dense3d_out[1])
-                softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], layer6_dense3d_out[2])
-                softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], layer6_dense3d_out[3])
-                softmax_cross_entropy_4 = tf.losses.softmax_cross_entropy(y_labels[4], layer6_dense3d_out[4])
-                softmax_cross_entropy_5 = tf.losses.softmax_cross_entropy(y_labels[5], layer6_dense3d_out[5])
-                softmax_cross_entropy_6 = tf.losses.softmax_cross_entropy(y_labels[6], layer6_dense3d_out[6])
+                softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], dense9_out[0])
+                softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], dense9_out[1])
+                softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], dense9_out[2])
+                softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], dense9_out[3])
 
                 tf.summary.scalar('softmax_cross_entropy_0', softmax_cross_entropy_0)
                 tf.summary.scalar('softmax_cross_entropy_1', softmax_cross_entropy_1)
                 tf.summary.scalar('softmax_cross_entropy_2', softmax_cross_entropy_2)
                 tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
-                tf.summary.scalar('softmax_cross_entropy_4', softmax_cross_entropy_4)
-                tf.summary.scalar('softmax_cross_entropy_5', softmax_cross_entropy_5)
-                tf.summary.scalar('softmax_cross_entropy_6', softmax_cross_entropy_6)
+
 
             with tf.name_scope('accuracy_by_class'):
 
@@ -498,35 +455,22 @@ def train_3d_nn():
                 accuracy_1 = (tp_1 + tn_1)/(tp_1 + fp_1 + fn_1 + tn_1)
                 accuracy_2 = (tp_2 + tn_2)/(tp_2 + fp_2 + fn_2 + tn_2)
                 accuracy_3 = (tp_3 + tn_3)/(tp_3 + fp_3 + fn_3 + tn_3)
-                accuracy_4 = (tp_4 + tn_4)/(tp_4 + fp_4 + fn_4 + tn_4)
-                accuracy_5 = (tp_5 + tn_5)/(tp_5 + fp_5 + fn_5 + tn_5)
-                accuracy_6 = (tp_6 + tn_6)/(tp_6 + fp_6 + fn_6 + tn_6)
 
                 tf.summary.scalar('accuracy_0', accuracy_0)
                 tf.summary.scalar('accuracy_1', accuracy_1)
                 tf.summary.scalar('accuracy_2', accuracy_2)
                 tf.summary.scalar('accuracy_3', accuracy_3)
-                tf.summary.scalar('accuracy_4', accuracy_4)
-                tf.summary.scalar('accuracy_5', accuracy_5)
-                tf.summary.scalar('accuracy_6', accuracy_6)
-
 
             with tf.name_scope('weighted_log_loss_by_class'):
                 weighted_log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], weights=class_weights[0], epsilon=10e-15)
                 weighted_log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], weights=class_weights[1], epsilon=10e-15)
                 weighted_log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], weights=class_weights[2], epsilon=10e-15)
                 weighted_log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], weights=class_weights[3], epsilon=10e-15)
-                weighted_log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], weights=class_weights[4], epsilon=10e-15)
-                weighted_log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], weights=class_weights[5], epsilon=10e-15)
-                weighted_log_loss_6 = tf.losses.log_loss(y_labels[6], y[6], weights=class_weights[6], epsilon=10e-15)
 
                 tf.summary.scalar('weighted_log_loss_0', weighted_log_loss_0)
                 tf.summary.scalar('weighted_log_loss_1', weighted_log_loss_1)
                 tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
                 tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
-                tf.summary.scalar('weighted_log_loss_4', weighted_log_loss_4)
-                tf.summary.scalar('weighted_log_loss_5', weighted_log_loss_5)
-                tf.summary.scalar('weighted_log_loss_6', weighted_log_loss_6)
 
             optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
 
@@ -566,6 +510,16 @@ def train_3d_nn():
             _, step_summary = sess.run([optimizer, merged],
                                                 feed_dict={x: x_batch, y_labels: y_batch})
             train_writer.add_summary(step_summary, i)
+
+             # Analysis code
+            if (i % FLAGS.iteration_analysis == 0) or (i == (i-1)) or (i == (FLAGS.max_iterations - 1)):
+                # Saving model
+                checkpoint_folder = os.path.join(MODELS, model_id)
+                if not os.path.exists(checkpoint_folder):
+                    os.makedirs(checkpoint_folder)
+                save_path = os.path.join(checkpoint_folder, 'model')
+                saver.save(sess=sess, save_path=save_path)
+
         post_train_log_loss, post_train_acc, post_train_prec, post_train_rec = calc_validation_metrics()
         print('\nPost-train validation log loss scikit: {0:.5}'.format(post_train_log_loss))
         print('Post-train validation accuracy: {0:.5}'.format(post_train_acc))
@@ -574,20 +528,12 @@ def train_3d_nn():
 
         ## TODO: Save pre-train/post-train log loss with model (name/id)
 
-        print('Model id: {}'.format(model_id))
-        # Saving model
-        checkpoint_folder = os.path.join(MODELS, model_id)
-        if not os.path.exists(checkpoint_folder):
-            os.makedirs(checkpoint_folder)
-        save_path = os.path.join(checkpoint_folder, 'model')
-        saver.save(sess=sess, save_path=save_path)
-
         # Clossing session
         sess.close()
 
 if __name__ == '__main__':
     start_time = time.time()
-    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_proc_chunks_seg_aug_nz_single/'
+    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_processed_chunks_augmented_v2_nz_single/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/luna/luna16/data/tensorboard_summaries/'
     MODELS = '/kaggle_2/luna/luna16/models/'
 
@@ -595,6 +541,8 @@ if __name__ == '__main__':
     FLAGS = tf.app.flags.FLAGS
 
     ## Prediction problem specific
+    tf.app.flags.DEFINE_integer('iteration_analysis', 1000,
+                                """Number of steps after which analysis code is executed""")
     tf.app.flags.DEFINE_integer('chunk_size', 48,
                                 """Size of chunks used.""")
     tf.app.flags.DEFINE_integer('num_classes', 4,
