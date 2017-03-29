@@ -233,19 +233,22 @@ def train_3d_nn():
             class_weights = tf.multiply(class_weights_base , [1000/40591.0, 1000/14624.0, 1000/10490.0, 1000/4215.0])
 
             # layer1
-            conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 64, num_channels = 1, strides = [1, 3, 3, 3, 1], name ='conv1_1')
+            conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = [1, 3, 3, 3, 1], name ='conv1_1')
+            
             relu1_1_out = relu_3d(inputs = conv1_1_out, name='relu1_1')
 
             pool1_out = max_pool_3d(inputs = relu1_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool1')
 
             # layer2
-            conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], name ='conv2_1')
+            conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1], name ='conv2_1')
+            
             relu2_1_out = relu_3d(inputs = conv2_1_out, name='relu2_1')
 
             pool2_out = max_pool_3d(inputs = relu2_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool2')
 
             # layer3
-            conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 3, 3, 3, 1], name ='conv3_1')
+            conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1], name ='conv3_1')
+            
             relu3_1_out = relu_3d(inputs = conv3_1_out, name='relu3_1')
 
             pool3_out = max_pool_3d(inputs = relu3_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool3')
@@ -255,20 +258,24 @@ def train_3d_nn():
             flatten5_out, flatten5_features = flatten_3d(dropout3_out)
 
             # layer6
-            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, name ='fc6')
+            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=512, name ='fc6')
+            
             relu6_out = relu_3d(inputs = dense6_out, name='relu6')
+            
             dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, name='drop6')
 
             # layer7
-            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, name ='fc7')
+            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=128, name ='fc7')
+            
             relu7_out = relu_3d(inputs = dense7_out, name='relu7')
+            
             dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, name='drop7')
 
             # layer8
-            dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
+            #dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
 
             # layer9
-            dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
+            dense9_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
 
             # Final softmax
             y = tf.nn.softmax(dense9_out)
