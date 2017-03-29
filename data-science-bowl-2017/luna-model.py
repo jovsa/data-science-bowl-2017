@@ -258,24 +258,24 @@ def train_3d_nn():
             flatten5_out, flatten5_features = flatten_3d(dropout3_out)
 
             # layer6
-            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=512, name ='fc6')
+            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, name ='fc6')
             
             relu6_out = relu_3d(inputs = dense6_out, name='relu6')
             
             dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, name='drop6')
 
             # layer7
-            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=128, name ='fc7')
+            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, name ='fc7')
             
             relu7_out = relu_3d(inputs = dense7_out, name='relu7')
             
             dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, name='drop7')
 
             # layer8
-            #dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
+            dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
 
             # layer9
-            dense9_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
+            dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
 
             # Final softmax
             y = tf.nn.softmax(dense9_out)
