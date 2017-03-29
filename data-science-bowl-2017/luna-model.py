@@ -72,8 +72,11 @@ def conv3d(inputs,             # The previous layer.
            num_channels,       # 1
            strides,            # [1,1,1,1,1]
            name):
-    filters = tf.Variable(tf.truncated_normal([filter_size, filter_size, filter_size, num_channels, num_filters],
-                                              dtype=tf.float32, stddev=1e-1), name= name + '_weights')
+    filters = tf.get_variable(name + '_weights', shape = [filter_size, filter_size, filter_size, num_channels, num_filters],
+                              initializer = tf.truncated_normal_initializer(stddev=1e-1, dtype=tf.float32),
+                              regularizer = tf.contrib.layers.l2_regularizer(FLAGS.reg_constant))
+    #filters = tf.Variable(tf.truncated_normal([filter_size, filter_size, filter_size, num_channels, num_filters],
+    #                                          dtype=tf.float32, stddev=1e-1), name= name + '_weights')
     conv = tf.nn.conv3d(inputs, filters, strides, padding='SAME', name=name)
     biases = tf.Variable(tf.constant(0.0, shape=[num_filters], dtype=tf.float32), name= name + '_biases')
     out = tf.nn.bias_add(conv, biases)
@@ -108,7 +111,10 @@ def dense_3d(inputs,
              num_inputs,
              num_outputs,
              name):
-    weights = tf.Variable(tf.truncated_normal([num_inputs, num_outputs], dtype=tf.float32, stddev=1e-1), name= name + '_weights')
+    #weights = tf.Variable(tf.truncated_normal([num_inputs, num_outputs], dtype=tf.float32, stddev=1e-1), name= name + '_weights')
+    weights = tf.get_variable(name + '_weights', shape = [num_inputs, num_outputs],
+                              initializer = tf.truncated_normal_initializer(stddev=1e-1, dtype=tf.float32),
+                              regularizer = tf.contrib.layers.l2_regularizer(FLAGS.reg_constant))
     biases = tf.Variable(tf.constant(0.0, shape=[num_outputs], dtype=tf.float32), name= name + '_biases')
     layer = tf.matmul(inputs, weights) + biases
     return layer
@@ -258,24 +264,24 @@ def train_3d_nn():
             flatten5_out, flatten5_features = flatten_3d(dropout3_out)
 
             # layer6
-            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, name ='fc6')
+            dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=512, name ='fc6')
             
             relu6_out = relu_3d(inputs = dense6_out, name='relu6')
             
             dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, name='drop6')
 
             # layer7
-            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, name ='fc7')
+            dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=128, name ='fc7')
             
             relu7_out = relu_3d(inputs = dense7_out, name='relu7')
             
             dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, name='drop7')
 
             # layer8
-            dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
+            #dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, name ='fc8')
 
             # layer9
-            dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
+            dense9_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=FLAGS.num_classes, name ='fc9')
 
             # Final softmax
             y = tf.nn.softmax(dense9_out)
@@ -295,7 +301,7 @@ def train_3d_nn():
                 tf.summary.scalar('accuracy', accuracy)
 
             with tf.name_scope('weighted_log_loss'):
-                weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15)
+                weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15) + tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
                 tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
             # Class Based Metrics calculations
@@ -531,11 +537,13 @@ if __name__ == '__main__':
                                 """Number of items in a batch.""")
     tf.app.flags.DEFINE_integer('max_iterations', 60000,
                                 """Number of batches to run.""")
+    tf.app.flags.DEFINE_float('reg_constant', 0.1, 'Regularization constant.')
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
     tf.app.flags.DEFINE_float('iteration_analysis_percentage', 0.10,
                                 """Percent of max_iterations after which analysis will be done""")
 
+    
     ## Tensorflow specific
     tf.app.flags.DEFINE_integer('num_gpus', 2,
                                 """How many GPUs to use.""")
