@@ -236,31 +236,31 @@ def train_3d_nn():
             conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 64, num_channels = 1, strides = [1, 3, 3, 3, 1], name ='conv1_1')
             relu1_1_out = relu_3d(inputs = conv1_1_out, name='relu1_1')
 
-            conv1_2_out, conv1_2_weights = conv3d(inputs = relu1_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], name ='conv1_2')
-            relu1_2_out = relu_3d(inputs = conv1_2_out, name='relu1_2')
+            #conv1_2_out, conv1_2_weights = conv3d(inputs = relu1_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], name ='conv1_2')
+            #relu1_2_out = relu_3d(inputs = conv1_2_out, name='relu1_2')
 
-            pool1_out = max_pool_3d(inputs = relu1_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool1')
+            pool1_out = max_pool_3d(inputs = relu1_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool1')
 
             # layer2
             conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], name ='conv2_1')
             relu2_1_out = relu_3d(inputs = conv2_1_out, name='relu2_1')
 
-            conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], name ='conv2_2')
-            relu2_2_out = relu_3d(inputs = conv2_2_out, name='relu2_2')
+            #conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], name ='conv2_2')
+            #relu2_2_out = relu_3d(inputs = conv2_2_out, name='relu2_2')
 
-            pool2_out = max_pool_3d(inputs = relu2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool2')
+            pool2_out = max_pool_3d(inputs = relu2_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool2')
 
             # layer3
             conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 3, 3, 3, 1], name ='conv3_1')
             relu3_1_out = relu_3d(inputs = conv3_1_out, name='relu3_1')
 
-            conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], name ='conv3_2')
-            relu3_2_out = relu_3d(inputs = conv3_2_out, name='relu3_2')
+            #conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], name ='conv3_2')
+            #relu3_2_out = relu_3d(inputs = conv3_2_out, name='relu3_2')
 
-            conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], name ='conv3_3')
-            relu3_3_out = relu_3d(inputs = conv3_3_out, name='relu3_3')
+            #conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], name ='conv3_3')
+            #relu3_3_out = relu_3d(inputs = conv3_3_out, name='relu3_3')
 
-            pool3_out = max_pool_3d(inputs = relu3_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool3')
+            pool3_out = max_pool_3d(inputs = relu3_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool3')
 
             # layer4
             #conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 512, num_channels = 256, strides = [1, 1, 1, 1, 1], name ='conv4_1')
@@ -518,6 +518,13 @@ def train_3d_nn():
                     os.makedirs(checkpoint_folder)
                 save_path = os.path.join(checkpoint_folder, 'model')
                 saver.save(sess=sess, save_path=save_path)
+                
+                post_train_log_loss, post_train_acc, post_train_prec, post_train_rec = calc_validation_metrics()
+                tqdm.write('\nStep {}'.format(i))
+                tqdm.write('Validation log loss scikit: {0:.5}'.format(post_train_log_loss))
+                tqdm.write('Validation accuracy: {0:.5}'.format(post_train_acc))
+                tqdm.write('Validation precision: {0:.5}'.format(post_train_prec))
+                tqdm.write('Validation recall: {0:.5}'.format(post_train_rec))
 
         post_train_log_loss, post_train_acc, post_train_prec, post_train_rec = calc_validation_metrics()
         print('\nPost-train validation log loss scikit: {0:.5}'.format(post_train_log_loss))
