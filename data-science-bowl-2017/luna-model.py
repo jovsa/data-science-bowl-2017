@@ -263,29 +263,29 @@ def train_3d_nn():
             pool3_out = max_pool_3d(inputs = relu3_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool3')
 
             # layer4
-            conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 512, num_channels = 256, strides = [1, 1, 1, 1, 1], name ='conv4_1')
-            relu4_1_out = relu_3d(inputs = conv4_1_out, name='relu4_1')
+            #conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 512, num_channels = 256, strides = [1, 1, 1, 1, 1], name ='conv4_1')
+            #relu4_1_out = relu_3d(inputs = conv4_1_out, name='relu4_1')
 
-            conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_2')
-            relu4_2_out = relu_3d(inputs = conv4_2_out, name='relu4_2')
+            #conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_2')
+            #relu4_2_out = relu_3d(inputs = conv4_2_out, name='relu4_2')
 
-            conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_3')
-            relu4_3_out = relu_3d(inputs = conv4_3_out, name='relu4_3')
+            #conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv4_3')
+            #relu4_3_out = relu_3d(inputs = conv4_3_out, name='relu4_3')
 
-            pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool4')
+            #pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool4')
 
             # layer5
-            conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_1')
-            relu5_1_out = relu_3d(inputs = conv5_1_out, name='relu5_1')
+            #conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_1')
+            #relu5_1_out = relu_3d(inputs = conv5_1_out, name='relu5_1')
 
-            conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_2')
-            relu5_2_out = relu_3d(inputs = conv5_2_out, name='relu5_2')
+            #conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_2')
+            #relu5_2_out = relu_3d(inputs = conv5_2_out, name='relu5_2')
 
-            conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_3')
-            relu5_3_out = relu_3d(inputs = conv5_3_out, name='relu5_3')
+            #conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 512, num_channels = 512, strides = [1, 1, 1, 1, 1], name ='conv5_3')
+            #relu5_3_out = relu_3d(inputs = conv5_3_out, name='relu5_3')
 
-            pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool5')
-            flatten5_out, flatten5_features = flatten_3d(pool5_out)
+            #pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], name ='pool5')
+            flatten5_out, flatten5_features = flatten_3d(pool3_out)
 
             # layer6
             dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, name ='fc6')
@@ -505,7 +505,6 @@ def train_3d_nn():
         print('Pre-train validation recall: {0:.5}'.format(pre_train_rec))
 
         for i in tqdm(range(FLAGS.max_iterations)):
-
             x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size, DATA_PATH)
             _, step_summary = sess.run([optimizer, merged],
                                                 feed_dict={x: x_batch, y_labels: y_batch})
