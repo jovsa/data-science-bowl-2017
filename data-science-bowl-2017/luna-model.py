@@ -202,7 +202,6 @@ def train_3d_nn():
 
         class_weights_base = tf.ones_like(y_labels)
         class_weights = tf.multiply(class_weights_base , [69920.0/40591.0, 69920.0/14624.0, 69920.0/10490.0, 69920.0/4215.0])
-        #cross_entropy_weights = tf.Variable([69920.0/40591.0, 69920.0/14624.0, 69920.0/10490.0, 69920.0/4215.0])
 
         # layer1
         conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = [1, 3, 3, 3, 1], layer_name ='conv1_1')
@@ -423,7 +422,7 @@ def train_3d_nn():
             tf.summary.scalar('f1_score_3', f1_score_3)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_softmax_cross_entropy)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
