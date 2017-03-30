@@ -60,12 +60,6 @@ def get_data(chunk_ids, PATH):
 
     return X, Y
 
-def new_weights(shape):
-    return tf.Variable(tf.truncated_normal(shape, stddev=0.05))
-
-def new_biases(length):
-    return tf.Variable(tf.constant(0.05, shape=[length]))
-
 def conv3d(inputs,             # The previous layer.
            filter_size,        # Width and height of each filter.
            num_filters,        # Number of filters.
@@ -75,8 +69,6 @@ def conv3d(inputs,             # The previous layer.
     filters = tf.get_variable(name + '_weights', shape = [filter_size, filter_size, filter_size, num_channels, num_filters],
                               initializer = tf.truncated_normal_initializer(stddev=1e-1, dtype=tf.float32),
                               regularizer = tf.contrib.layers.l2_regularizer(FLAGS.reg_constant))
-    #filters = tf.Variable(tf.truncated_normal([filter_size, filter_size, filter_size, num_channels, num_filters],
-    #                                          dtype=tf.float32, stddev=1e-1), name= name + '_weights')
     conv = tf.nn.conv3d(inputs, filters, strides, padding='SAME', name=name)
     biases = tf.Variable(tf.constant(0.0, shape=[num_filters], dtype=tf.float32), name= name + '_biases')
     out = tf.nn.bias_add(conv, biases)
@@ -111,7 +103,6 @@ def dense_3d(inputs,
              num_inputs,
              num_outputs,
              name):
-    #weights = tf.Variable(tf.truncated_normal([num_inputs, num_outputs], dtype=tf.float32, stddev=1e-1), name= name + '_weights')
     weights = tf.get_variable(name + '_weights', shape = [num_inputs, num_outputs],
                               initializer = tf.truncated_normal_initializer(stddev=1e-1, dtype=tf.float32),
                               regularizer = tf.contrib.layers.l2_regularizer(FLAGS.reg_constant))
