@@ -145,6 +145,7 @@ def train_3d_nn():
     Y = np.argmax(Y, axis = 1)
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y, test_size=0.20)
 
+    klass_weights = np.asarray([69920.0/40591.0, 69920.0/14624.0, 69920.0/10490.0, 69920.0/4215.0])
     # Free up X and Y memory
     del X
     del Y
@@ -185,7 +186,10 @@ def train_3d_nn():
         else:
             x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number, FLAGS.batch_size)
             k = 1.0
-        return {x: x_batch, y_labels: y_batch, keep_prob: k}
+        crss_entrpy_weights = np.ones((y_batch.shape[0]))
+        for m in range(y_batch.shape[0]):
+            crss_entrpy_weights[m] = np.amax(y_batch[m] * klass_weights)
+        return {x: x_batch, y_labels: y_batch, keep_prob: k, cross_entropy_weights: crss_entrpy_weights}
 
     # Graph construction
     graph = tf.Graph()
@@ -193,10 +197,11 @@ def train_3d_nn():
         x = tf.placeholder(tf.float32, shape=[None, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], name = 'x')
         y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
         y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
+        cross_entropy_weights = tf.placeholder(tf.float32, shape=[None], name ='cross_entropy_weights')
         keep_prob = tf.placeholder(tf.float32)
 
         class_weights_base = tf.ones_like(y_labels)
-        class_weights = tf.multiply(class_weights_base , [1000/40591.0, 1000/14624.0, 1000/10490.0, 1000/4215.0])
+        class_weights = tf.multiply(class_weights_base , [69920.0/40591.0, 69920.0/14624.0, 69920.0/10490.0, 69920.0/4215.0])
 
         # layer1
         conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = [1, 3, 3, 3, 1], layer_name ='conv1_1')
@@ -260,6 +265,10 @@ def train_3d_nn():
         with tf.name_scope('weighted_log_loss'):
             weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15) + tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
             tf.summary.scalar('weighted_log_loss', weighted_log_loss)
+
+        with tf.name_scope('weighted_softmax_cross_entropy'):
+            weighted_softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out, weights=cross_entropy_weights)
+            tf.summary.scalar('weighted_softmax_cross_entropy', weighted_softmax_cross_entropy)
 
         # Class Based Metrics calculations
         y_pred_class = tf.argmax(y, 1)
@@ -380,7 +389,6 @@ def train_3d_nn():
             tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
 
         with tf.name_scope('accuracy_by_class'):
-
             accuracy_0 = (tp_0 + tn_0)/(tp_0 + fp_0 + fn_0 + tn_0)
             accuracy_1 = (tp_1 + tn_1)/(tp_1 + fp_1 + fn_1 + tn_1)
             accuracy_2 = (tp_2 + tn_2)/(tp_2 + fp_2 + fn_2 + tn_2)
@@ -402,8 +410,19 @@ def train_3d_nn():
             tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
             tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
 
+        with tf.name_scope('f1_score_by_class'):
+            f1_score_0 = 2 * (precision_0 * recall_0) / (precision_0 + recall_0)
+            f1_score_1 = 2 * (precision_1 * recall_1) / (precision_1 + recall_1)
+            f1_score_2 = 2 * (precision_2 * recall_2) / (precision_2 + recall_2)
+            f1_score_3 = 2 * (precision_3 * recall_3) / (precision_3 + recall_3)
+            #f1_score = (f1_score_0 * 40591.0/69920.0) + (f1_score_1 * 14624.0/69920.0) + (f1_score_2 * 10490.0/69920.0) + (f1_score_3 *4215.0/ 69920.0)
+            tf.summary.scalar('f1_score_0', f1_score_0)
+            tf.summary.scalar('f1_score_1', f1_score_1)
+            tf.summary.scalar('f1_score_2', f1_score_2)
+            tf.summary.scalar('f1_score_3', f1_score_3)
+
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_softmax_cross_entropy)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
