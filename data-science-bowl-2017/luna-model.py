@@ -440,7 +440,7 @@ def train_3d_nn():
                 # Validation
                 num_batches = int(math.ceil(float(len(validation_x)) / FLAGS.batch_size))
                 for k in range(num_batches):
-                    _, step_summary = sess.run([optimizer, merged], feed_dict=feed_dict(False, k))
+                    _, step_summary = sess.run([y, merged], feed_dict=feed_dict(False, k))
                     test_writer.add_summary(step_summary, k_count)
                     k_count = k_count + 1
             else:
