@@ -433,45 +433,52 @@ def worker(patient_uid):
 
 
 def predict_features():
-    uids = []
-    processed_patients = set()
+    # Will do this loop twice two catch any files that errored out due to out of memory error
+    for counter in range(0,2):
+        uids = []
+        processed_patients = set()
+        for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
+            n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
+            processed_patients.add(n.group(1))
 
-    for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
-        n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
-        processed_patients.add(n.group(1))
+        for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
+            m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
+            patient_uid = m.group(1)
 
-    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
-        m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
-        patient_uid = m.group(1)
+            if patient_uid in processed_patients:
+                print('Skipping already processed patient {}'.format(patient_uid))
+                continue
+            else:
+                uids.append(patient_uid)
 
-        if patient_uid in processed_patients:
-            print('Skipping already processed patient {}'.format(patient_uid))
-            continue
-        else:
-            uids.append(patient_uid)
+        # Predict batch size = 3
+        for i in tqdm(range(0, len(uids), 3)):
+            if i+2 < len(uids) and counter == 0:
+                p0 = mp.Process(target=worker, args=(uids[i],))
+                p1 = mp.Process(target=worker, args=(uids[i+1],))
+                p2 = mp.Process(target=worker, args=(uids[i+2],))
 
-    # Predict batch size = 3
-    for i in tqdm(range(0, len(uids), 3)):
-        if i+2 < len(uids):
-            p0 = mp.Process(target=worker, args=(uids[i],))
-            p1 = mp.Process(target=worker, args=(uids[i+1],))
-            p2 = mp.Process(target=worker, args=(uids[i+2],))
-
-            p0.start()
-            p1.start()
-            p2.start()
-
-
-            p0.join()
-            p1.join()
-            p2.join()
-        else:
-            j=i
-            while (j<len(uids)):
-                p0 = mp.Process(target=worker, args=(uids[j],))
                 p0.start()
+                p1.start()
+                p2.start()
+
+
                 p0.join()
-                j = j+1
+                p1.join()
+                p2.join()
+            else:
+                j=i
+                while (j<len(uids)):
+                    p0 = mp.Process(target=worker, args=(uids[j],))
+                    p0.start()
+                    p0.join()
+                    j = j+1
+
+        del processed_patients
+        del uids
+
+
+
 
 
 
