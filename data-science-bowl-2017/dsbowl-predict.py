@@ -15,7 +15,6 @@ import math
 import multiprocessing as mp
 import random
 
-
 # Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
 pd.options.mode.chained_assignment = None
 
@@ -160,9 +159,12 @@ def get_patient_data_chunks(patient_id):
     X = X.astype(np.float32, copy=False)
     X = normalize(X)
     X = zero_center(X)
+    del scans
     return X
 
-def predict_features():
+
+def worker(patient_uid):
+    print("start:", patient_uid )
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
@@ -378,8 +380,8 @@ def predict_features():
             tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
             tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
 
-        #with tf.name_scope('train'):
-            #optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
+        # with tf.name_scope('train'):
+        #     optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
@@ -395,85 +397,94 @@ def predict_features():
         saver = tf.train.import_meta_graph(MODEL_PATH + 'model.meta')
         saver.restore(sess, tf.train.latest_checkpoint(MODEL_PATH))
 
-        processed_patients = set()
+        # print('Processing patient {}'.format(patient_uid))
+        x_in = get_patient_data_chunks(patient_uid)
+        # print('Got Data for patient {}'.format(patient_uid))
+        X = np.ndarray([x_in.shape[0], FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
+        X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
 
-        for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
-            n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
-            processed_patients.add(n.group(1))
+        # print('X: {}'.format(X.shape))
+        predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
+        transfer_values = np.ndarray([X.shape[0], 512], dtype=np.float32)
 
-        def make_outputs(folder, ouput):
-            print('here', folder)
-            m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
-            patient_uid = m.group(1)
+        num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
+        for i in range(0, num_batches):
+            batch_start = i * FLAGS.batch_size
+            batch_end = batch_start + FLAGS.batch_size
+            batch_end = X.shape[0] if (batch_end > X.shape[0]) else batch_end
+            feed_dict = {x: X[batch_start : batch_end],
+                         y_labels: np.zeros([batch_end - batch_start, FLAGS.num_classes], dtype=np.float32),
+                         keep_prob: 1.0}
 
-            if patient_uid in processed_patients:
-                print('Skipping already processed patient {}'.format(patient_uid))
-                # continue
+            # print('X[{}]: {}'.format(i, X[batch_start:batch_end].shape))
+            pred, trans_val = sess.run([y, dense6_out], feed_dict=feed_dict)
+            predictions[batch_start: batch_end, :] = pred
+            transfer_values[batch_start: batch_end, :] = trans_val
+            #print('predictions: ' + str(predictions.shape))
+            #print('transfer_values: ' + str(transfer_values.shape))
 
-            # print('Processing patient {}'.format(patient_uid))
-            x_in = get_patient_data_chunks(patient_uid)
-            # print('Got Data for patient {}'.format(patient_uid))
-            X = np.ndarray([x_in.shape[0], FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
-            X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
+        np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
+        np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
 
-            # print('X: {}'.format(X.shape))
-            predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
-            transfer_values = np.ndarray([X.shape[0], 512], dtype=np.float32)
-
-            num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
-            for i in range(0, num_batches):
-                batch_start = i * FLAGS.batch_size
-                batch_end = batch_start + FLAGS.batch_size
-                batch_end = X.shape[0] if (batch_end > X.shape[0]) else batch_end
-                feed_dict = {x: X[batch_start : batch_end],
-                             y_labels: np.zeros([batch_end - batch_start, FLAGS.num_classes], dtype=np.float32),
-                             keep_prob: 1.0}
-
-                # print('X[{}]: {}'.format(i, X[batch_start:batch_end].shape))
-                pred, trans_val = sess.run([y, dense6_out], feed_dict=feed_dict)
-                predictions[batch_start: batch_end, :] = pred
-                transfer_values[batch_start: batch_end, :] = trans_val
-                #print('predictions: ' + str(predictions.shape))
-                #print('transfer_values: ' + str(transfer_values.shape))
-
-            np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
-            np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
-            del x_in, X
-            output.put(patient_id)
-            return
-
-        random.seed(123)
-        output = mp.Queue()
-
-        processes = [mp.Process(target=make_outputs, args=(folder, output)) for folder in (glob.glob(DATA_PATH + PATIENT_SCANS + '*'))[0:10]]
-
-        # Run processes
-        for p in processes:
-            p.start()
-
-        # Exit the completed processes
-        for p in processes:
-            p.join()
-
-        # Get process results from the output queue
-        results = [output.get() for p in processes]
-
-        print(results)
-
-        #for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
-
-
+        del x_in, X
 
     sess.close()
+    print("end:", patient_uid )
+
+
+def predict_features():
+    uids = []
+    processed_patients = set()
+
+    for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
+        n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
+        processed_patients.add(n.group(1))
+
+    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')[0:5]):
+        m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
+        patient_uid = m.group(1)
+
+        if patient_uid in processed_patients:
+            print('Skipping already processed patient {}'.format(patient_uid))
+            continue
+        else:
+            uids.append(patient_uid)
+
+    # Predict batch size = 3
+    for i in tqdm(range(0, len(uids), 3)):
+
+        if i+2 < len(uids):
+            p0 = mp.Process(target=worker, args=(uids[i],))
+            p1 = mp.Process(target=worker, args=(uids[i+1],))
+            p2 = mp.Process(target=worker, args=(uids[i+2],))
+
+            p0.start()
+            p1.start()
+            p2.start()
+
+
+            p0.join()
+            p1.join()
+            p2.join()
+
+        else:
+            j=i
+            while (j<len(uids)):
+                p0 = mp.Process(target=worker, args=(uids[j],))
+                p0.start()
+                p0.join()
+                j = j+1
+
+
 
 if __name__ == '__main__':
     start_time = time.time()
 
     DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
-    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_vn/'
+    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v4/'
     PATIENT_SCANS = 'scan_segmented_lungs_fill_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
-    MODEL_PATH = '/kaggle_2/luna/luna16/models/9067c9d5-5247-4f9c-8fe7-760a14435c0a/'
+    MODEL_PATH = '/kaggle_2/luna/luna16/models/09dc3a07-fbeb-4c86-8f79-39cddccdd84c/'
     OVERLAP_PERCENTAGE = 0.7
 
     #globals initializing
@@ -492,6 +503,8 @@ if __name__ == '__main__':
                                 """Percent of max_iterations after which analysis will be done""")
     tf.app.flags.DEFINE_float('reg_constant', 0.1, 'Regularization constant.')
     tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout')
+
+
     ## Tensorflow specific
     tf.app.flags.DEFINE_integer('num_gpus', 2,
                                 """How many GPUs to use.""")
