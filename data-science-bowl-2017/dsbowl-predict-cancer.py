@@ -114,12 +114,12 @@ def make_submission():
     print('\nTraining..')
     clf = train_xgboost(train_x, validation_x, train_y, validation_y)
 
-    del train_x, train_y, validation_x, validation_y
-
     print('\nPredicting on validation set')
     validation_y_predicted = clf.predict(validation_x)
     validation_log_loss = sklearn.metrics.log_loss(validation_y, validation_y_predicted, eps=1e-15)
     print('Post-trian validation log loss: {}'.format(validation_log_loss))
+
+    del train_x, train_y, validation_x, validation_y
     #print(validation_y)
     #print(validation_y_predicted)
 
