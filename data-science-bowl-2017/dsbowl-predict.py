@@ -159,6 +159,7 @@ def get_patient_data_chunks(patient_id):
     X = X.astype(np.float32, copy=False)
     X = normalize(X)
     X = zero_center(X)
+    del scans
     return X
 
 
@@ -432,19 +433,18 @@ def worker(patient_uid):
 
 def predict_features():
     uids = []
-    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')[0:2]):
+    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')[0:3]):
         m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
         patient_uid = m.group(1)
         uids.append(patient_uid)
 
-    p0 = mp.Process(target=worker, args=(uids[0],))
-    p1 = mp.Process(target=worker, args=(uids[1],))
+    for i in uids:
+        p = mp.Process(target=worker, args=(i,))
+        p.start()
 
-    p0.start()
-    p1.start()
+    for i in uids:
+        p.join()
 
-    p0.join()
-    p1.join()
 
     print("done")
 
