@@ -481,7 +481,7 @@ if __name__ == '__main__':
     start_time = time.time()
 
     DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
-    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_vn/'
+    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v4/'
     PATIENT_SCANS = 'scan_segmented_lungs_fill_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
     MODEL_PATH = '/kaggle_2/luna/luna16/models/09dc3a07-fbeb-4c86-8f79-39cddccdd84c/'
