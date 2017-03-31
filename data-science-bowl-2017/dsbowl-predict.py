@@ -437,10 +437,20 @@ def predict_features():
         patient_uid = m.group(1)
         uids.append(patient_uid)
 
-        pool = mp.Pool(processes=5)
-        results = [pool.apply(worker, args=(patient_uid,))]
-        pool.close()
-        pool.join()
+    p0 = mp.Process(target=worker, args=(uids[0],))
+    p1 = mp.Process(target=worker, args=(uids[1],))
+
+    p0.start()
+    p1.start()
+
+    p0.join()
+    p1.join()
+
+    print("done")
+
+
+
+
 
 
 
