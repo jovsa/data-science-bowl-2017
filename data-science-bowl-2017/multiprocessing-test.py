@@ -21,35 +21,17 @@ pd.options.mode.chained_assignment = None
 import scipy.misc
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-def get_patient_data_chunks(patient_id, output):
+def worker(patient_id):
     print("patient_id", patient_id)
-
-    output.put(patient_id)
+    return patient_id
 
 def predict_features():
 
-    random.seed(1234)
-    output = mp.Queue()
+    ids = [1,2,3,5,9,10,12]
 
-    # Setup a list of processes that we want to run
-    processes = [mp.Process(target=get_patient_data_chunks, args=(x, output)) for x in range(10)]
-
-    # Run processes
-    for p in processes:
-        p.start()
-
-    # Exit the completed processes
-    for p in processes:
-        p.join()
-
-    # Get process results from the output queue
-    results = [output.get() for p in processes]
-
+    pool = mp.Pool(processes=4)
+    results = [pool.apply(worker, args=(x,)) for x in range(0,10000000000000000)]
     print(results)
-
-
-    # for i in range(0, 10):
-    #     get_patient_data_chunks(i)
     return
 
 if __name__ == '__main__':

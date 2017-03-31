@@ -12,6 +12,8 @@ import sys
 import datetime
 import tensorflow as tf
 import math
+import multiprocessing as mp
+import random
 
 # Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
 pd.options.mode.chained_assignment = None
@@ -159,7 +161,9 @@ def get_patient_data_chunks(patient_id):
     X = zero_center(X)
     return X
 
-def predict_features():
+
+def worker(patient_uid):
+    print("start:", patient_uid )
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
@@ -392,51 +396,61 @@ def predict_features():
         saver = tf.train.import_meta_graph(MODEL_PATH + 'model.meta')
         saver.restore(sess, tf.train.latest_checkpoint(MODEL_PATH))
 
-        processed_patients = set()
-        for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
-            n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
-            processed_patients.add(n.group(1))
+        # print('Processing patient {}'.format(patient_uid))
+        x_in = get_patient_data_chunks(patient_uid)
+        # print('Got Data for patient {}'.format(patient_uid))
+        X = np.ndarray([x_in.shape[0], FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
+        X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
 
-        for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
-            m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
-            patient_uid = m.group(1)
+        # print('X: {}'.format(X.shape))
+        predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
+        transfer_values = np.ndarray([X.shape[0], 512], dtype=np.float32)
 
-            if patient_uid in processed_patients:
-                #print('Skipping already processed patient {}'.format(patient_uid))
-                continue
+        num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
+        for i in range(0, num_batches):
+            batch_start = i * FLAGS.batch_size
+            batch_end = batch_start + FLAGS.batch_size
+            batch_end = X.shape[0] if (batch_end > X.shape[0]) else batch_end
+            feed_dict = {x: X[batch_start : batch_end],
+                         y_labels: np.zeros([batch_end - batch_start, FLAGS.num_classes], dtype=np.float32),
+                         keep_prob: 1.0}
 
-            # print('Processing patient {}'.format(patient_uid))
-            x_in = get_patient_data_chunks(patient_uid)
-            # print('Got Data for patient {}'.format(patient_uid))
-            X = np.ndarray([x_in.shape[0], FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
-            X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
+            # print('X[{}]: {}'.format(i, X[batch_start:batch_end].shape))
+            pred, trans_val = sess.run([y, dense6_out], feed_dict=feed_dict)
+            predictions[batch_start: batch_end, :] = pred
+            transfer_values[batch_start: batch_end, :] = trans_val
+            #print('predictions: ' + str(predictions.shape))
+            #print('transfer_values: ' + str(transfer_values.shape))
 
-            # print('X: {}'.format(X.shape))
-            predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
-            transfer_values = np.ndarray([X.shape[0], 512], dtype=np.float32)
+        np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
+        np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
 
-            num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
-            for i in range(0, num_batches):
-                batch_start = i * FLAGS.batch_size
-                batch_end = batch_start + FLAGS.batch_size
-                batch_end = X.shape[0] if (batch_end > X.shape[0]) else batch_end
-                feed_dict = {x: X[batch_start : batch_end],
-                             y_labels: np.zeros([batch_end - batch_start, FLAGS.num_classes], dtype=np.float32),
-                             keep_prob: 1.0}
-
-                # print('X[{}]: {}'.format(i, X[batch_start:batch_end].shape))
-                pred, trans_val = sess.run([y, dense6_out], feed_dict=feed_dict)
-                predictions[batch_start: batch_end, :] = pred
-                transfer_values[batch_start: batch_end, :] = trans_val
-                #print('predictions: ' + str(predictions.shape))
-                #print('transfer_values: ' + str(transfer_values.shape))
-
-            np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
-            np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
-
-            del x_in, X
-
+        del x_in, X
     sess.close()
+    print("end:", patient_uid )
+
+
+def predict_features():
+    uids = []
+    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')[0:2]):
+        m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
+        patient_uid = m.group(1)
+        uids.append(patient_uid)
+
+        pool = mp.Pool(processes=5)
+        results = [pool.apply(worker, args=(patient_uid,))]
+        pool.close()
+        pool.join()
+
+
+
+    # pool = mp.Pool(processes=5)
+    # results = [pool.apply(worker, args=(x,)) for x in uids]
+    # pool.close()
+    # pool.join()
+        # print(results)
+
+
 
 if __name__ == '__main__':
     start_time = time.time()
