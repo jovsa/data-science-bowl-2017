@@ -380,8 +380,8 @@ def worker(patient_uid):
             tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
             tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
 
-        #with tf.name_scope('train'):
-            #optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
+        # with tf.name_scope('train'):
+        #     optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
@@ -427,38 +427,53 @@ def worker(patient_uid):
         np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
 
         del x_in, X
+
     sess.close()
     print("end:", patient_uid )
 
 
 def predict_features():
     uids = []
-    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')[0:3]):
+    processed_patients = set()
+
+    for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
+        n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
+        processed_patients.add(n.group(1))
+
+    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')[0:5]):
         m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
         patient_uid = m.group(1)
-        uids.append(patient_uid)
 
-    for i in uids:
-        p = mp.Process(target=worker, args=(i,))
-        p.start()
+        if patient_uid in processed_patients:
+            print('Skipping already processed patient {}'.format(patient_uid))
+            continue
+        else:
+            uids.append(patient_uid)
 
-    for i in uids:
-        p.join()
+    # Predict batch size = 3
+    for i in tqdm(range(0, len(uids), 3)):
+
+        if i+2 < len(uids):
+            p0 = mp.Process(target=worker, args=(uids[i],))
+            p1 = mp.Process(target=worker, args=(uids[i+1],))
+            p2 = mp.Process(target=worker, args=(uids[i+2],))
+
+            p0.start()
+            p1.start()
+            p2.start()
 
 
-    print("done")
+            p0.join()
+            p1.join()
+            p2.join()
 
-
-
-
-
-
-
-    # pool = mp.Pool(processes=5)
-    # results = [pool.apply(worker, args=(x,)) for x in uids]
-    # pool.close()
-    # pool.join()
-        # print(results)
+        else:
+            j=i
+            while (j<len(uids)):
+                p0 = mp.Process(target=worker, args=(uids[j],))
+                p0.start()
+                p0.join()
+                j = j+1
 
 
 
@@ -469,7 +484,7 @@ if __name__ == '__main__':
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_vn/'
     PATIENT_SCANS = 'scan_segmented_lungs_fill_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
-    MODEL_PATH = '/kaggle_2/luna/luna16/models/9067c9d5-5247-4f9c-8fe7-760a14435c0a/'
+    MODEL_PATH = '/kaggle_2/luna/luna16/models/09dc3a07-fbeb-4c86-8f79-39cddccdd84c/'
     OVERLAP_PERCENTAGE = 0.7
 
     #globals initializing
@@ -488,6 +503,8 @@ if __name__ == '__main__':
                                 """Percent of max_iterations after which analysis will be done""")
     tf.app.flags.DEFINE_float('reg_constant', 0.1, 'Regularization constant.')
     tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout')
+
+
     ## Tensorflow specific
     tf.app.flags.DEFINE_integer('num_gpus', 2,
                                 """How many GPUs to use.""")
