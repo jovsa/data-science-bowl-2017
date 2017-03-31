@@ -12,9 +12,6 @@ import sys
 import datetime
 import tensorflow as tf
 import math
-import multiprocessing as mp
-import random
-
 
 # Fixes "SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame"
 pd.options.mode.chained_assignment = None
@@ -396,19 +393,17 @@ def predict_features():
         saver.restore(sess, tf.train.latest_checkpoint(MODEL_PATH))
 
         processed_patients = set()
-
         for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
             n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
             processed_patients.add(n.group(1))
 
-        def make_outputs(folder, ouput):
-            print('here', folder)
+        for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
             m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
             patient_uid = m.group(1)
 
             if patient_uid in processed_patients:
-                print('Skipping already processed patient {}'.format(patient_uid))
-                # continue
+                #print('Skipping already processed patient {}'.format(patient_uid))
+                continue
 
             # print('Processing patient {}'.format(patient_uid))
             x_in = get_patient_data_chunks(patient_uid)
@@ -438,31 +433,8 @@ def predict_features():
 
             np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
             np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
+
             del x_in, X
-            output.put(patient_id)
-            return
-
-        random.seed(123)
-        output = mp.Queue()
-
-        processes = [mp.Process(target=make_outputs, args=(folder, output)) for folder in (glob.glob(DATA_PATH + PATIENT_SCANS + '*'))[0:10]]
-
-        # Run processes
-        for p in processes:
-            p.start()
-
-        # Exit the completed processes
-        for p in processes:
-            p.join()
-
-        # Get process results from the output queue
-        results = [output.get() for p in processes]
-
-        print(results)
-
-        #for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
-
-
 
     sess.close()
 
