@@ -440,7 +440,7 @@ def predict_features():
         n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
         processed_patients.add(n.group(1))
 
-    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')[0:5]):
+    for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
         m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
         patient_uid = m.group(1)
 
@@ -452,7 +452,6 @@ def predict_features():
 
     # Predict batch size = 3
     for i in tqdm(range(0, len(uids), 3)):
-
         if i+2 < len(uids):
             p0 = mp.Process(target=worker, args=(uids[i],))
             p1 = mp.Process(target=worker, args=(uids[i+1],))
@@ -466,7 +465,6 @@ def predict_features():
             p0.join()
             p1.join()
             p2.join()
-
         else:
             j=i
             while (j<len(uids)):
@@ -477,11 +475,12 @@ def predict_features():
 
 
 
+
 if __name__ == '__main__':
     start_time = time.time()
 
     DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
-    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v4/'
+    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
     PATIENT_SCANS = 'scan_segmented_lungs_fill_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
     MODEL_PATH = '/kaggle_2/luna/luna16/models/09dc3a07-fbeb-4c86-8f79-39cddccdd84c/'
