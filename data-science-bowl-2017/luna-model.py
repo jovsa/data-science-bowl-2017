@@ -270,8 +270,6 @@ def train_3d_nn():
             weighted_softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out, weights=cross_entropy_weights)
             tf.summary.scalar('weighted_softmax_cross_entropy', weighted_softmax_cross_entropy)
 
-<<<<<<< e0c3a34975f4e69973cc1df75b830bba3fe84d2b
-=======
         with tf.name_scope('sparse_softmax_cross_entropy'):
             y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
             sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out)
@@ -282,7 +280,6 @@ def train_3d_nn():
             weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out, weights=cross_entropy_weights)
             tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
 
->>>>>>> Optimize on weighted_sparse_softmax_cross_entropy
         # Class Based Metrics calculations
         y_pred_class = tf.argmax(y, 1)
         y_labels_class = tf.argmax(y_labels, 1)
@@ -435,11 +432,7 @@ def train_3d_nn():
             tf.summary.scalar('f1_score_3', f1_score_3)
 
         with tf.name_scope('train'):
-<<<<<<< e0c3a34975f4e69973cc1df75b830bba3fe84d2b
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_softmax_cross_entropy)
-=======
             optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_sparse_softmax_cross_entropy)
->>>>>>> Optimize on weighted_sparse_softmax_cross_entropy
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
