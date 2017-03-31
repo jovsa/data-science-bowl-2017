@@ -34,6 +34,8 @@ def get_patient_labels(patient_ids):
 
 def get_patient_features(patient_ids):
     input_features = {}
+    num_patients = len(patient_ids)
+    count = 0
     for patient_id in patient_ids:
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
@@ -44,11 +46,13 @@ def get_patient_features(patient_ids):
         features = sp.misc.imresize(features, (FEATURES_SHAPE, FEATURES_SHAPE))
         features_flattened = features.flatten()
         input_features[patient_id] = features_flattened
+        count = count + 1
         # print('Patient {} predictions {} transfer_values {} features {} label {}'.format(patient_id,
         #                                                                         predictions.shape,
         #                                                                         transfer_values.shape,
         #                                                                         features.shape,
         #                                                                         label))
+        print('Loaded data for patient {}/{}'.format(count, num_patients))
     return input_features
 
 def train_xgboost(trn_x, val_x, trn_y, val_y):
@@ -111,7 +115,7 @@ def make_submission():
     clf = train_xgboost(train_x, validation_x, train_y, validation_y)
 
     del train_x, train_y, validation_x, validation_y
-    
+
     print('\nPredicting on validation set')
     validation_y_predicted = clf.predict(validation_x)
     validation_log_loss = sklearn.metrics.log_loss(validation_y, validation_y_predicted, eps=1e-15)
