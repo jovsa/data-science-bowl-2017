@@ -1,5 +1,6 @@
 import glob
 import os
+import csv
 import re
 import pandas as pd
 import numpy as np
@@ -10,44 +11,47 @@ import time
 from datetime import timedelta
 import sys
 import datetime
-import tensorflow as tf
+#import tensorflow as tf
 import math
-from sklearn import cross_validation
+from sklearn import model_selection
 import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier as RF
 import scipy as sp
 from sklearn.decomposition import PCA
 import sklearn.metrics
 
-def perform_PCA(input_image):
-    n_components = 1000
-    pca = PCA(n_components=n_components, svd_solver='randomized', whiten=True).fit(input_image)
-    patient_data_pca = pca.transform(input_image)
-    return patient_data_pca
-
-def get_inputs():
+def get_patient_labels(patient_ids):
     labels = pd.read_csv(LABELS)
-    input_features = {}
-
-    for features in glob.glob(DATA_PATH + '*_transfer_values.npy'):
-        n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(features))
-        patient_id = n.group(1)
-        predictions = np.array([np.mean(np.load(DATA_PATH + patient_id + '_predictions.npy'), axis=0)])
-        transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
-        transfer_values = sp.misc.imresize(transfer_values, (1150, 1150))
-        transfer_values = transfer_values.flatten()
-        feature_val = transfer_values
+    input_labels = {}
+    for patient_id in patient_ids:
         try:
-            label_val = int(labels.loc[labels['id'] == patient_id, 'cancer'])
+            label = int(labels.loc[labels['id'] == patient_id, 'cancer'])
+            input_labels[patient_id] = label
         except TypeError:
+            print('ERROR: Couldnt find label for patient {}'.format(patient_id))
             continue
-        input_features[patient_id] = [feature_val, label_val]
-        print('Patient {} predictions {} transfer_values {}'.format(patient_id, predictions.shape, transfer_values.shape))
+    return input_labels
 
+def get_patient_features(patient_ids):
+    input_features = {}
+    for patient_id in patient_ids:
+        predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
+        transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
+        features_shape = (transfer_values.shape[0], transfer_values.shape[1] + NUM_CLASSES)
+        features = np.zeros(shape=features_shape, dtype=np.float32)
+        features[:, 0:transfer_values.shape[1]] = transfer_values
+        features[:, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES] = predictions
+        features = sp.misc.imresize(features, (FEATURES_SHAPE, FEATURES_SHAPE))
+        features_flattened = features.flatten()
+        input_features[patient_id] = features_flattened
+        # print('Patient {} predictions {} transfer_values {} features {} label {}'.format(patient_id,
+        #                                                                         predictions.shape,
+        #                                                                         transfer_values.shape,
+        #                                                                         features.shape,
+        #                                                                         label))
     return input_features
 
 def train_xgboost(trn_x, val_x, trn_y, val_y):
-
     clf = xgb.XGBRegressor(max_depth=10,
                            gamma=0.5,
                            objective="binary:logistic",
@@ -61,55 +65,87 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
                            max_delta_step=1,
                            reg_alpha=0.1,
                            reg_lambda=0.5)
-    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
+    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=10)
     return clf
 
-
 def make_submission():
-    inputs = get_inputs()
+    print('Loading data..')
+    time0 = time.time()
+    patient_ids = set()
+    for file_path in glob.glob(DATA_PATH + "*_transfer_values.npy"):
+        filename = os.path.basename(file_path)
+        patient_id = re.match(r'([a-f0-9].*)_transfer_values.npy', filename).group(1)
+        patient_ids.add(patient_id)
 
-    x = np.array([inputs[keys][0]for keys in inputs.keys()])
-    y = np.array([inputs[keys][1] for keys in inputs.keys()])
+    sample_submission = pd.read_csv(STAGE1_SUBMISSION)
+    #df = pd.merge(sample_submission, patient_ids_df, how='inner', on=['id'])
+    test_patient_ids = set(sample_submission['id'].tolist())
+    train_patient_ids = patient_ids.difference(test_patient_ids)
+    train_inputs = get_patient_features(train_patient_ids)
+    train_labels = get_patient_labels(train_patient_ids)
 
-    trn_x, val_x, trn_y, val_y = cross_validation.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
-    clf = train_xgboost(trn_x, val_x, trn_y, val_y)
-    val_y_pred = clf.predict(val_x)
+    num_patients = len(train_patient_ids)
+    X = np.ndarray(shape=(num_patients, FEATURES_SHAPE * FEATURES_SHAPE), dtype=np.float32)
+    Y = np.ndarray(shape=(num_patients), dtype=np.float32)
 
-    for i in range(val_y.shape[0]):
-        print("val_y:", val_y[i], "val_y_pred:",val_y_pred[i])
+    count = 0
+    for key in train_inputs.keys():
+        X[count] = train_inputs[key]
+        Y[count] = train_labels[key]
+        count = count + 1
 
+    print('Loaded train data for {} patients'.format(count))
+    print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
+    print('\nSplitting data into train, validation')
+    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y, test_size=0.20)
 
+    del X
+    del Y
+
+    print('train_x: {}'.format(train_x.shape))
+    print('validation_x: {}'.format(validation_x.shape))
+    print('train_y: {}'.format(train_y.shape))
+    print('validation_y: {}'.format(validation_y.shape))
+
+    print('\nTraining..')
+    clf = train_xgboost(train_x, validation_x, train_y, validation_y)
+
+    del train_x, train_y, validation_x, validation_y
+    
+    print('\nPredicting on validation set')
+    validation_y_predicted = clf.predict(validation_x)
+    validation_log_loss = sklearn.metrics.log_loss(validation_y, validation_y_predicted, eps=1e-15)
+    print('Post-trian validation log loss: {}'.format(validation_log_loss))
+    #print(validation_y)
+    #print(validation_y_predicted)
+
+    num_patients = len(test_patient_ids)
+    test_inputs = get_patient_features(test_patient_ids)
+    X = np.ndarray(shape=(num_patients, FEATURES_SHAPE * FEATURES_SHAPE), dtype=np.float32)
+
+    timestamp = str(int(time.time()))
+    filename = OUTPUT_PATH + 'submission-' + timestamp + ".csv"
+
+    with open(filename, 'w') as csvfile:
+        submission_writer = csv.writer(csvfile, delimiter=',')
+        submission_writer.writerow(['id', 'cancer'])
+
+        print('\nPredicting on test set')
+        for key in test_inputs.keys():
+            x = test_inputs[key]
+            y = clf.predict([x])
+            submission_writer.writerow([key, y[0]])
+
+    print('Generated submission file: {}'.format(filename))
 
 if __name__ == '__main__':
     start_time = time.time()
-
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v2/'
+    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
-
-    #globals initializing
-    FLAGS = tf.app.flags.FLAGS
-
-    ## Prediction problem specific
-    tf.app.flags.DEFINE_integer('num_classes', 2,
-                                """Number of classes to predict.""")
-    tf.app.flags.DEFINE_integer('batch_size', 32,
-                                """Number of items in a batch.""")
-    tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
-                                """Percent of max_iterations after which optimization will be halted if no improvement found""")
-    tf.app.flags.DEFINE_float('iteration_analysis_percentage', 0.10,
-                                """Percent of max_iterations after which analysis will be done""")
-
-    ## Tensorflow specific
-    tf.app.flags.DEFINE_integer('num_gpus', 2,
-                                """How many GPUs to use.""")
-    tf.app.flags.DEFINE_boolean('log_device_placement', False,
-                                """Whether to log device placement.""")
-    tf.app.flags.DEFINE_boolean('allow_soft_placement', True,
-                                """Whether to allow soft placement of calculations by tf.""")
-    tf.app.flags.DEFINE_boolean('allow_growth', True,
-                                """Whether to allow GPU growth by tf.""")
+    NUM_CLASSES = 4
+    FEATURES_SHAPE = 1200
 
     make_submission()
     end_time = time.time()
