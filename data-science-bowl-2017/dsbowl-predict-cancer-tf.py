@@ -63,8 +63,8 @@ def conv1d(inputs,             # The previous layer.
     with tf.name_scope(layer_name):
         with tf.name_scope('weights'):
             filters = tf.get_variable(layer_name + 'weights', shape = [filter_size, num_channels, num_filters],
-                                      initializer = tf.truncated_normal_initializer(stddev=1e-1, dtype=tf.float32),
-                                      regularizer = tf.contrib.layers.l2_regularizer(FLAGS.reg_constant))
+                                      initializer = tf.truncated_normal_initializer(stddev=1e-1, dtype=tf.float32))#,
+                                      #regularizer = tf.contrib.layers.l2_regularizer(FLAGS.reg_constant))
         with tf.name_scope('biases'):
             biases = tf.Variable(tf.constant(0.0, shape=[num_filters], dtype=tf.float32))
         with tf.name_scope('conv'):
@@ -109,32 +109,46 @@ def dense_1d(inputs,
     with tf.name_scope(layer_name):
         with tf.name_scope('weights'):
             weights = tf.get_variable(layer_name + 'weights', shape = [num_inputs, num_outputs],
-                              initializer = tf.truncated_normal_initializer(stddev=1e-1, dtype=tf.float32),
-                              regularizer = tf.contrib.layers.l2_regularizer(FLAGS.reg_constant))
+                              initializer = tf.truncated_normal_initializer(stddev=1e-1, dtype=tf.float32))#,
+                              #regularizer = tf.contrib.layers.l2_regularizer(FLAGS.reg_constant))
         with tf.name_scope('biases'):
             biases = tf.Variable(tf.constant(0.0, shape=[num_outputs], dtype=tf.float32))
         with tf.name_scope('Wx_plus_b'):
             layer = tf.matmul(inputs, weights) + biases
         return layer
 
-def get_training_batch(train_x, train_y, batch_size):
-    num_images = len(train_x)
+def get_training_batch(train_x_ids, train_y, batch_size):
+    num_images = len(train_x_ids)
     idx = np.random.choice(num_images,
                            size=batch_size,
                            replace=False)
-    x_batch = train_x[idx]
-    y_batch = train_y[idx]
+    x_batch_ids = train_x_ids[idx]
+    y_batch_temp = train_y[idx]
+
+    x_batch = np.ndarray([batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
+    y_batch = np.ndarray([batch_size, FLAGS.num_classes])
+    for i in range(len(x_batch_ids)):
+        x_batch[i] = img_to_rgb(np.load(DATA_PATH + x_batch_ids[i]))
+        y_batch[i] = y_batch_temp[i]
 
     return x_batch, y_batch
 
-def get_validation_batch(validation_x, validation_y, batch_number, batch_size):
-    num_images = len(validation_x)
+def get_validation_batch(validation_x_ids, validation_y, batch_number, batch_size):
+    num_images = len(validation_x_ids)
 
     start_index = batch_number * batch_size
     end_index = start_index + batch_size
     end_index = num_images if end_index > num_images else end_index
+    real_batch_size = end_index - start_index
 
-    return validation_x[start_index:end_index], validation_y[start_index:end_index]
+    x_batch = np.ndarray([real_batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
+    y_batch = np.ndarray([real_batch_size, FLAGS.num_classes])
+
+    for i in range(real_batch_size):
+        x_batch[i] = img_to_rgb(np.load(DATA_PATH + validation_x_ids[start_index + i]))
+        y_batch[i] = validation_y[start_index + i]
+
+    return x_batch, y_batch
 
 def save_model(sess, model_id, saver):
     checkpoint_folder = os.path.join(MODELS, model_id)
@@ -147,32 +161,28 @@ def train_nn():
     print('Loading data..')
     time0 = time.time()
     patient_ids = set()
-    for file_path in glob.glob(DATA_PATH + "*_transfer_values.npy"):
-        filename = os.path.basename(file_path)
-        patient_id = re.match(r'([a-f0-9].*)_transfer_values.npy', filename).group(1)
-        patient_ids.add(patient_id)
+
+    for folder in os.listdir(DATA_PATH):
+        patient_ids.add(folder)
 
     sample_submission = pd.read_csv(STAGE1_SUBMISSION)
     test_patient_ids = set(sample_submission['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
 
-    #train_patient_ids = list(train_patient_ids)[0:20]
-
-    train_inputs = get_patient_features(train_patient_ids)
     train_labels = get_patient_labels(train_patient_ids)
 
     X_list = []
     Y_list = []
-    for key in train_inputs.keys():
-        patient_features = train_inputs[key]
-        patient_label = train_labels[key]
-        for i in range(patient_features.shape[0]):
-            X_list.append(img_to_rgb(patient_features[i]))
-            Y_list.append(patient_label)
+    for patient_id in train_patient_ids:
+        label = train_labels[patient_id]
+        for file_path in glob.glob(DATA_PATH + patient_id + '/' + '*_Y.npy'):
+            filename = os.path.basename(file_path)
+            chunk_number = re.match(r'([0-9].*)_Y.npy', filename).group(1)
+            X_list.append(patient_id + '/{}_X.npy'.format(chunk_number))
+            Y_list.append(label)
 
     num_chunks = len(X_list)
 
-    print(num_chunks)
     X = np.asarray(X_list)
     Y = np.asarray(Y_list)
 
@@ -185,6 +195,19 @@ def train_nn():
 
     del X
     del Y
+
+    # train_inputs = get_patient_features(train_patient_ids)
+    # train_labels = get_patient_labels(train_patient_ids)
+    #
+    # X_list = []
+    # Y_list = []
+    # for key in train_inputs.keys():
+    #     patient_features = train_inputs[key]
+    #     patient_label = train_labels[key]
+    #     for i in range(patient_features.shape[0]):
+    #         X_list.append(img_to_rgb(patient_features[i]))
+    #         Y_list.append(patient_label)
+
 
     # One-hot encode
     train_y = (np.arange(FLAGS.num_classes) == train_y[:, None])+0
@@ -211,10 +234,12 @@ def train_nn():
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
-        x = tf.placeholder(tf.float32, shape=[None, FLAGS.transfer_values_shape + FLAGS.num_classes_luna, 1], name = 'x')
+        x = tf.placeholder(tf.float32, shape=[None, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], name = 'x')
         y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
         y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
         keep_prob = tf.placeholder(tf.float32)
+        class_weights_base = tf.ones_like(y_labels)
+        class_weights = tf.multiply(class_weights_base , [1.0/0.25, 1.0/0.75])
 
         # layer1
         conv1_out, conv1_weights = conv1d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = 3, layer_name ='conv1')
@@ -257,7 +282,7 @@ def train_nn():
 
         # Overall Metrics Calculations
         with tf.name_scope('log_loss'):
-            log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15) + tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+            log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
             tf.summary.scalar('log_loss', log_loss)
 
         with tf.name_scope('softmax_cross_entropy'):
@@ -274,12 +299,12 @@ def train_nn():
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
             tf.summary.scalar('accuracy', accuracy)
 
-        # with tf.name_scope('weighted_log_loss'):
-        #     weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15) + tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        #     tf.summary.scalar('weighted_log_loss', weighted_log_loss)
+        with tf.name_scope('weighted_log_loss'):
+            weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15)
+            tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(log_loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
@@ -304,6 +329,10 @@ def train_nn():
 
     print('Run_name: {}'.format(train_run_name))
 
+    sum_training_batch = 0.0
+    sum_validation_batch = 0.0
+    sum_training_pred = 0.0
+    sum_validation_pred = 0.0
     k_count = 0
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES + train_run_name, sess.graph)
@@ -316,13 +345,35 @@ def train_nn():
                 # Validation
                 num_batches = int(math.ceil(float(len(validation_x)) / FLAGS.batch_size))
                 for k in range(num_batches):
-                    _, step_summary = sess.run([y, merged], feed_dict=feed_dict(False, k))
+                    start_time = time.time()
+                    feed_dict_v = feed_dict(False, k)
+                    end_time = time.time()
+                    sum_validation_batch += (end_time - start_time)
+
+                    start_time = time.time()
+                    _, step_summary = sess.run([y, merged], feed_dict=feed_dict_v)
+                    end_time = time.time()
+                    sum_validation_pred += (end_time - start_time)
                     test_writer.add_summary(step_summary, k_count)
                     k_count = k_count + 1
+                tqdm.write('get_batch_validation: {}'.format(sum_validation_batch/k_count))
+                tqdm.write('predict_validation: {}'.format(sum_validation_pred/k_count))
+
             else:
                 # Train
-                _, step_summary = sess.run([optimizer, merged], feed_dict=feed_dict(True))
+                start_time = time.time()
+                feed_dict_t = feed_dict(True)
+                end_time = time.time()
+                sum_training_batch += (end_time - start_time)
+
+                start_time = time.time()
+                _, step_summary = sess.run([optimizer, merged], feed_dict=feed_dict_t)
+                end_time = time.time()
+                sum_training_pred += (end_time - start_time)
+
                 train_writer.add_summary(step_summary, i)
+                tqdm.write('get_batch_training: {}'.format(sum_training_batch/i))
+                tqdm.write('predict_validation: {}'.format(sum_training_pred/i))
 
         train_writer.close()
         test_writer.close()
@@ -402,7 +453,7 @@ def train_nn():
 if __name__ == '__main__':
     start_time = time.time()
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
+    DATA_PATH = '/kaggle_3/stage1_features_v3_chunked/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
@@ -412,7 +463,7 @@ if __name__ == '__main__':
     FLAGS = tf.app.flags.FLAGS
 
     ## Prediction problem specific
-    tf.app.flags.DEFINE_integer('iteration_analysis', 100,
+    tf.app.flags.DEFINE_integer('iteration_analysis', 1000,
                                 """Number of steps after which analysis code is executed""")
     tf.app.flags.DEFINE_integer('num_classes', 2,
                                 """Number of classes to predict.""")
@@ -420,7 +471,7 @@ if __name__ == '__main__':
                                 """Number of classes predicted by LUNA model.""")
     tf.app.flags.DEFINE_integer('transfer_values_shape', 512,
                                 'Size of transfer values')
-    tf.app.flags.DEFINE_integer('batch_size', 128,
+    tf.app.flags.DEFINE_integer('batch_size', 1024,
                                 """Number of items in a batch.""")
     tf.app.flags.DEFINE_integer('max_iterations', 60000,
                                 """Number of batches to run.""")
