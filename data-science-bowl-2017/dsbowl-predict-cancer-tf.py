@@ -146,7 +146,7 @@ def get_validation_batch(validation_x_ids, validation_y, batch_number, batch_siz
     y_batch = np.ndarray([real_batch_size, FLAGS.num_classes])
 
     for i in range(real_batch_size):
-        key = DATA_PATH + alidation_x_ids[start_index + i]
+        key = DATA_PATH + validation_x_ids[start_index + i]
         x_batch[i] = img_to_rgb(X_dict[key])
         y_batch[i] = validation_y[start_index + i]
 
