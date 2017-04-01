@@ -117,7 +117,7 @@ def dense_1d(inputs,
             layer = tf.matmul(inputs, weights) + biases
         return layer
 
-def get_training_batch(train_x_ids, train_y, batch_size):
+def get_training_batch(train_x_ids, train_y, batch_size, X_dict):
     num_images = len(train_x_ids)
     idx = np.random.choice(num_images,
                            size=batch_size,
@@ -128,12 +128,13 @@ def get_training_batch(train_x_ids, train_y, batch_size):
     x_batch = np.ndarray([batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
     y_batch = np.ndarray([batch_size, FLAGS.num_classes])
     for i in range(len(x_batch_ids)):
-        x_batch[i] = img_to_rgb(np.load(DATA_PATH + x_batch_ids[i]))
+        key = DATA_PATH + x_batch_ids[i]
+        x_batch[i] = img_to_rgb(X_dict[key])
         y_batch[i] = y_batch_temp[i]
 
     return x_batch, y_batch
 
-def get_validation_batch(validation_x_ids, validation_y, batch_number, batch_size):
+def get_validation_batch(validation_x_ids, validation_y, batch_number, batch_size, X_dict):
     num_images = len(validation_x_ids)
 
     start_index = batch_number * batch_size
@@ -145,7 +146,8 @@ def get_validation_batch(validation_x_ids, validation_y, batch_number, batch_siz
     y_batch = np.ndarray([real_batch_size, FLAGS.num_classes])
 
     for i in range(real_batch_size):
-        x_batch[i] = img_to_rgb(np.load(DATA_PATH + validation_x_ids[start_index + i]))
+        key = DATA_PATH + alidation_x_ids[start_index + i]
+        x_batch[i] = img_to_rgb(X_dict[key])
         y_batch[i] = validation_y[start_index + i]
 
     return x_batch, y_batch
@@ -173,13 +175,21 @@ def train_nn():
 
     X_list = []
     Y_list = []
+    X_dict = {}
+    sum_load = 0.0
+    count = 0
     for patient_id in train_patient_ids:
         label = train_labels[patient_id]
         for file_path in glob.glob(DATA_PATH + patient_id + '/' + '*_Y.npy'):
             filename = os.path.basename(file_path)
             chunk_number = re.match(r'([0-9].*)_Y.npy', filename).group(1)
-            X_list.append(patient_id + '/{}_X.npy'.format(chunk_number))
+            key = patient_id + '/{}_X.npy'.format(chunk_number)
+            X_dict[key] = np.load(DATA_PATH + key)
+            X_list.append(key)
             Y_list.append(label)
+            count = count + 1
+            if count % 100000 == 0:
+                print('Loaded {} chunks'.format(count))
 
     num_chunks = len(X_list)
 
@@ -188,6 +198,7 @@ def train_nn():
 
     print('X.shape: {}'.format(X.shape))
     print('Y.shape: {}'.format(Y.shape))
+    print('X_dict.len {}'.format(len(X_dict)))
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
     print('\nSplitting data into train, validation')
@@ -195,19 +206,6 @@ def train_nn():
 
     del X
     del Y
-
-    # train_inputs = get_patient_features(train_patient_ids)
-    # train_labels = get_patient_labels(train_patient_ids)
-    #
-    # X_list = []
-    # Y_list = []
-    # for key in train_inputs.keys():
-    #     patient_features = train_inputs[key]
-    #     patient_label = train_labels[key]
-    #     for i in range(patient_features.shape[0]):
-    #         X_list.append(img_to_rgb(patient_features[i]))
-    #         Y_list.append(patient_label)
-
 
     # One-hot encode
     train_y = (np.arange(FLAGS.num_classes) == train_y[:, None])+0
@@ -223,10 +221,10 @@ def train_nn():
 
     def feed_dict(is_train, batch_number = 0):
         if is_train:
-            x_batch, y_batch = get_training_batch(train_x, train_y, FLAGS.batch_size)
+            x_batch, y_batch = get_training_batch(train_x, train_y, FLAGS.batch_size, X_dict)
             k = FLAGS.dropout
         else:
-            x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number, FLAGS.batch_size)
+            x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number, FLAGS.batch_size, X_dict)
             k = 1.0
 
         return {x: x_batch, y_labels: y_batch, keep_prob: k}
