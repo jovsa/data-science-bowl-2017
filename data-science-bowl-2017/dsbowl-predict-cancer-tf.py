@@ -128,7 +128,7 @@ def get_training_batch(train_x_ids, train_y, batch_size, X_dict):
     x_batch = np.ndarray([batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
     y_batch = np.ndarray([batch_size, FLAGS.num_classes])
     for i in range(len(x_batch_ids)):
-        key = DATA_PATH + x_batch_ids[i]
+        key = x_batch_ids[i]
         x_batch[i] = img_to_rgb(X_dict[key])
         y_batch[i] = y_batch_temp[i]
 
@@ -146,7 +146,7 @@ def get_validation_batch(validation_x_ids, validation_y, batch_number, batch_siz
     y_batch = np.ndarray([real_batch_size, FLAGS.num_classes])
 
     for i in range(real_batch_size):
-        key = DATA_PATH + validation_x_ids[start_index + i]
+        key = validation_x_ids[start_index + i]
         x_batch[i] = img_to_rgb(X_dict[key])
         y_batch[i] = validation_y[start_index + i]
 
@@ -164,7 +164,7 @@ def train_nn():
     time0 = time.time()
     patient_ids = set()
 
-    for folder in os.listdir(DATA_PATH):
+    for folder in os.listdir(DATA_PATH)[0:5]:   ### Only for a subset
         patient_ids.add(folder)
 
     sample_submission = pd.read_csv(STAGE1_SUBMISSION)
