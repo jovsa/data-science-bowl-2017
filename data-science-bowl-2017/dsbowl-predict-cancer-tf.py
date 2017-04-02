@@ -19,24 +19,13 @@ import xgboost as xgb
 import scipy as sp
 from sklearn.decomposition import PCA
 import sklearn.metrics
+import pickle
 
 def img_to_rgb(im):
     x = im.shape[0]
     ret = np.empty((x, 1), dtype=np.float32)
     ret[:, 0] = im
     return ret
-
-def get_patient_labels(patient_ids):
-    labels = pd.read_csv(LABELS)
-    input_labels = {}
-    for patient_id in patient_ids:
-        try:
-            label = int(labels.loc[labels['id'] == patient_id, 'cancer'])
-            input_labels[patient_id] = label
-        except TypeError:
-            print('ERROR: Couldnt find label for patient {}'.format(patient_id))
-            continue
-    return input_labels
 
 def get_patient_features(patient_ids):
     input_features = {}
@@ -159,37 +148,48 @@ def save_model(sess, model_id, saver):
     save_path = os.path.join(checkpoint_folder, 'model')
     saver.save(sess=sess, save_path=save_path)
 
+def get_ids(PATH):
+    patient_ids = []
+    for path in glob.glob(DATA_PATH_PREPROCESS + "*_transfer_values.npy"):
+        patient_id = re.match(r'([a-f0-9].*)_transfer_values.npy', os.path.basename(path)).group(1)
+        patient_ids.append(patient_id)
+    return patient_ids
+
 def train_nn():
     print('Loading data..')
     time0 = time.time()
     patient_ids = set()
 
-    for folder in os.listdir(DATA_PATH)[0:5]:   ### Only for a subset
-        patient_ids.add(folder)
+    patient_ids = set(get_ids(DATA_PATH_PREPROCESS))
+
+    X_list = []
+    Y_list = []
+    X_dict = {}
+
 
     sample_submission = pd.read_csv(STAGE1_SUBMISSION)
     test_patient_ids = set(sample_submission['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
 
-    train_labels = get_patient_labels(train_patient_ids)
+    for path in glob.glob(DATA_PATH_POSTPROCESS + "X_dict/*"):
+        X_dict_pkl_file = open(os.path.join(path), 'rb')
+        X_dict_temp = pickle.load(X_dict_pkl_file)
+        X_dict.update(X_dict_temp)
+        X_dict_pkl_file.close()
 
-    X_list = []
-    Y_list = []
-    X_dict = {}
-    sum_load = 0.0
-    count = 0
-    for patient_id in train_patient_ids:
-        label = train_labels[patient_id]
-        for file_path in glob.glob(DATA_PATH + patient_id + '/' + '*_Y.npy'):
-            filename = os.path.basename(file_path)
-            chunk_number = re.match(r'([0-9].*)_Y.npy', filename).group(1)
-            key = patient_id + '/{}_X.npy'.format(chunk_number)
-            X_dict[key] = np.load(DATA_PATH + key)
-            X_list.append(key)
-            Y_list.append(label)
-            count = count + 1
-            if count % 100000 == 0:
-                print('Loaded {} chunks'.format(count))
+    X_list_pkl_file = open(os.path.join(DATA_PATH_POSTPROCESS, 'X_list.pkl'), 'rb')
+    X_list = pickle.load(X_list_pkl_file)
+    X_list_pkl_file.close()
+
+
+    Y_list_pkl_file = open(os.path.join(DATA_PATH_POSTPROCESS, 'Y_list.pkl'), 'rb')
+    Y_list = pickle.load(Y_list_pkl_file)
+    Y_list_pkl_file.close()
+
+    print("len(X_dict)", len(X_dict))
+    print("len(X_list)", len(X_list))
+    print("len(X_list)", len(X_list))
+
 
     num_chunks = len(X_list)
 
@@ -354,8 +354,8 @@ def train_nn():
                     sum_validation_pred += (end_time - start_time)
                     test_writer.add_summary(step_summary, k_count)
                     k_count = k_count + 1
-                tqdm.write('get_batch_validation: {}'.format(sum_validation_batch/k_count))
-                tqdm.write('predict_validation: {}'.format(sum_validation_pred/k_count))
+                # tqdm.write('get_batch_validation: {}'.format(sum_validation_batch/k_count))
+                # tqdm.write('predict_validation: {}'.format(sum_validation_pred/k_count))
 
             else:
                 # Train
@@ -370,8 +370,8 @@ def train_nn():
                 sum_training_pred += (end_time - start_time)
 
                 train_writer.add_summary(step_summary, i)
-                tqdm.write('get_batch_training: {}'.format(sum_training_batch/i))
-                tqdm.write('predict_validation: {}'.format(sum_training_pred/i))
+                # tqdm.write('get_batch_training: {}'.format(sum_training_batch/i))
+                # tqdm.write('predict_validation: {}'.format(sum_training_pred/i))
 
         train_writer.close()
         test_writer.close()
@@ -451,7 +451,8 @@ def train_nn():
 if __name__ == '__main__':
     start_time = time.time()
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle_3/stage1_features_v3_chunked/'
+    DATA_PATH_PREPROCESS = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
+    DATA_PATH_POSTPROCESS = '/kaggle_3/stage1_features_v3_1_chunked/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
