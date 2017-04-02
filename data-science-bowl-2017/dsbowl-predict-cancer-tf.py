@@ -302,7 +302,7 @@ def train_nn():
             tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
