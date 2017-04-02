@@ -38,14 +38,17 @@ def get_patient_features(patient_ids):
     count = 0
     for patient_id in patient_ids:
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
-        transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
-        features_shape = (transfer_values.shape[0], transfer_values.shape[1] + NUM_CLASSES)
-        features = np.zeros(shape=features_shape, dtype=np.float32)
-        features[:, 0:transfer_values.shape[1]] = transfer_values
-        features[:, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES] = predictions
-        features = sp.misc.imresize(features, (FEATURES_SHAPE, FEATURES_SHAPE))
-        features_flattened = features.flatten()
-        input_features[patient_id] = features_flattened
+        predictions_count = np.bincount(np.argmax(predictions, axis=1), minlength=4)
+
+        # transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
+        # features_shape = (transfer_values.shape[0], transfer_values.shape[1] + NUM_CLASSES)
+        # features = np.zeros(shape=features_shape, dtype=np.float32)
+        # features[:, 0:transfer_values.shape[1]] = transfer_values
+        # features[:, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES] = predictions
+        # features = sp.misc.imresize(features, (FEATURES_SHAPE, FEATURES_SHAPE))
+        # features_flattened = features.flatten()
+
+        input_features[patient_id] = predictions_count
         count = count + 1
         # print('Patient {} predictions {} transfer_values {} features {} label {}'.format(patient_id,
         #                                                                         predictions.shape,
@@ -69,7 +72,7 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
                            max_delta_step=1,
                            reg_alpha=0.1,
                            reg_lambda=0.5)
-    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=10)
+    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=100)
     return clf
 
 def make_submission():
@@ -89,7 +92,7 @@ def make_submission():
     train_labels = get_patient_labels(train_patient_ids)
 
     num_patients = len(train_patient_ids)
-    X = np.ndarray(shape=(num_patients, FEATURES_SHAPE * FEATURES_SHAPE), dtype=np.float32)
+    X = np.ndarray(shape=(num_patients, NUM_CLASSES), dtype=np.float32)
     Y = np.ndarray(shape=(num_patients), dtype=np.float32)
 
     count = 0
