@@ -186,6 +186,10 @@ def train_nn():
     Y_list = pickle.load(Y_list_pkl_file)
     Y_list_pkl_file.close()
 
+    print("len(X_dict)", len(X_dict))
+    print("len(X_list)", len(X_list))
+    print("len(X_list)", len(X_list))
+
 
     num_chunks = len(X_list)
 
@@ -298,7 +302,7 @@ def train_nn():
             tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_log_loss)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
