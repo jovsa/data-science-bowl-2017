@@ -19,13 +19,21 @@ from sklearn import model_selection, metrics
 from matplotlib import pyplot as plt
 import tensorflow as tf
 from tqdm import tqdm
-import pickle
 
 DATA_PATH_PREPROCESS = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
-DATA_PATH_POSTPROCESS = '/kaggle_3/stage1_features_v3_1_chunked/'
+DATA_PATH_POSTPROCESS = '/kaggle_3/stage1_features_v3_chunked/'
 LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
 
 NUM_CLASSES_LUNA = 4
+
+def shuffle_in_unison(arrays, random_seed=None):
+    if random_seed:
+        np.random.seed(random_seed)
+    n = len(arrays[0])
+    for a in arrays:
+        assert(len(a) == n)
+    idx = np.random.permutation(n)
+    return [a[idx] for a in arrays]
 
 def get_ids(PATH):
     patient_ids = []
@@ -39,13 +47,24 @@ def chunk_map():
     labels = pd.read_csv(LABELS)
     train_patient_ids = set(list(labels['id']))
 
-    patient_count = 1
-    chunk_count = 1
-    Y_list = []
-    X_list = []
-    X_dict = {}
+    processed_patient_ids = set()
+    for folder in os.listdir(DATA_PATH_POSTPROCESS):
+        processed_patient_ids.add(folder)
 
-    for patient_id in tqdm(patient_ids):
+    patient_count = 0
+    chunk_count = 0
+
+    for patient_id in patient_ids:
+        if patient_id in processed_patient_ids:
+            print('Skipping already processed patient {}'.format(patient_id))
+            patient_count = patient_count + 1
+            continue
+
+        print('Processing patient {}'.format(patient_id))
+        patient_folder = os.path.join(DATA_PATH_POSTPROCESS, patient_id)
+        if not os.path.exists(patient_folder):
+            os.makedirs(patient_folder)
+
         predictions = np.array(np.load(DATA_PATH_PREPROCESS + patient_id + '_predictions.npy'))
         transfer_values = np.array(np.load(DATA_PATH_PREPROCESS + patient_id + '_transfer_values.npy'))
         features_shape = (transfer_values.shape[0], transfer_values.shape[1] + NUM_CLASSES_LUNA + 1)
@@ -56,33 +75,17 @@ def chunk_map():
             label = int(labels.loc[labels['id'] == patient_id, 'cancer'])
         else:
             label = -1
+            
+        for i in range(features.shape[0]):
+            features[i, transfer_values.shape[1] + NUM_CLASSES_LUNA] = i
+            X = features[i]
+            np.save(patient_folder + '/' + str(i) + '_X.npy', X)
+            if label != -1:
+                np.save(patient_folder + '/' + str(i) + '_Y.npy', label)
 
-        for chunk_number in range(features.shape[0]):
-            features[chunk_number, transfer_values.shape[1] + NUM_CLASSES_LUNA] = chunk_number
-            X = features[chunk_number]
-            key = patient_id + '/{}_X.npy'.format(chunk_number)
-            X_dict[key] = X
-            X_list.append(key)
-            Y_list.append(label)
-
-
-        if (patient_count % 100 == 0) or (patient_count == (len(patient_ids))):
-            filename = ('X_dict_{}.pkl').format(patient_count)
-            output = open(os.path.join(DATA_PATH_POSTPROCESS, 'X_dict/',filename ), 'wb')
-            pickle.dump(X_dict, output )
-            output.close()
-            print('Processed {} chunks'.format(str(chunk_count)))
-            del X_dict
-            X_dict = {}
         chunk_count = chunk_count + features.shape[0]
         patient_count = patient_count + 1
-
-
-
-    pickle.dump(X_list, open(os.path.join(DATA_PATH_POSTPROCESS, 'X_list.pkl'), 'wb'))
-    pickle.dump(Y_list, open(os.path.join(DATA_PATH_POSTPROCESS, 'Y_list.pkl'), 'wb'))
+        print('Processed {}/{} patients'.format(patient_count, len(patient_ids)))
     print('Processed {} chunks'.format(str(chunk_count)))
-
-
 
 chunk_map()
