@@ -45,23 +45,15 @@ def get_patient_features(patient_ids):
             current_max_class  = np.argmax(predictions[i])
             max_class[i] = current_max_class
 
-        # print('predictions.shape', predictions.shape)
-        # print('max_class.shape', max_class.shape)
-
 
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
-        # print('transfer_values.shape', transfer_values.shape)
+
 
         features_shape = (transfer_values.shape[0], transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
         features = np.zeros(shape=features_shape, dtype=np.float32)
         features[:, 0:transfer_values.shape[1]] = transfer_values
         features[:, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES] = predictions
         features[:, transfer_values.shape[1] + NUM_CLASSES: transfer_values.shape[1] + NUM_CLASSES+ MAX_CLASS_IDENTIFIER] = max_class
-
-        # for i in range(0,512):
-        #     temp  = features[i,:]
-        #     if temp[516] > 1 :
-        #         print(features[i,transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES + 1], i)
 
         num_0 = 0
         num_1 = 0
@@ -80,8 +72,6 @@ def get_patient_features(patient_ids):
 
             if (features[i, 516] == 3.0):
                 num_3 = num_3 + 1
-
-        print(num_0, num_1, num_2, num_3)
 
         features_shape_0 = (num_0, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
         features_0 = np.zeros(shape=features_shape_0, dtype=np.float32)
@@ -117,33 +107,14 @@ def get_patient_features(patient_ids):
                 features_3[index3] = features[i,:]
                 index3 = index3 + 1
 
-        print('--construction---')
-        print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
-
         features_0 = np.mean(features_0, axis = 0)
         features_1 = np.mean(features_1, axis = 0)
         features_2 = np.mean(features_2, axis = 0)
         features_3 = np.mean(features_3, axis = 0)
 
-        print('++after mean+++')
-
-
-        # features = np.append(features_0, features_1, axis = 0)
-        # features = np.append(features, features_2, axis = 0)
-        # features = np.append(features, features_3, axis = 0)
-
-        # features_0 = features_0.reshape(-1, 1)
-        # features_1 = features_1.reshape(-1, 1)
-        # features_2 = features_2.reshape(-1, 1)
-        # features_3 = features_3.reshape(-1, 1)
-        print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
-
         features_flattened = np.concatenate((features_0, features_1), axis = 0)
         features_flattened = np.concatenate((features_flattened, features_2) , axis = 0)
         features_flattened = np.concatenate((features_flattened, features_3) , axis = 0)
-
-        print('*****after appending***')
-        print(features_flattened.shape)
 
 
         input_features[patient_id] = features_flattened
