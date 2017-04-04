@@ -19,13 +19,24 @@ import xgboost as xgb
 import scipy as sp
 from sklearn.decomposition import PCA
 import sklearn.metrics
-import pickle
 
 def img_to_rgb(im):
-    x = im.shape[0]
-    ret = np.empty((x, 1), dtype=np.float32)
-    ret[:, 0] = im
+    x, y = im.shape
+    ret = np.empty((x, y, 1), dtype=np.float32)
+    ret[:, :, 0] = im
     return ret
+
+def get_patient_labels(patient_ids):
+    labels = pd.read_csv(LABELS)
+    input_labels = {}
+    for patient_id in patient_ids:
+        try:
+            label = int(labels.loc[labels['id'] == patient_id, 'cancer'])
+            input_labels[patient_id] = label
+        except TypeError:
+            print('ERROR: Couldnt find label for patient {}'.format(patient_id))
+            continue
+    return input_labels
 
 def get_patient_features(patient_ids):
     input_features = {}
@@ -33,14 +44,87 @@ def get_patient_features(patient_ids):
     count = 0
     for patient_id in patient_ids:
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
+
+        max_class_shape = (predictions.shape[0], 1)
+        max_class = np.zeros(shape=max_class_shape, dtype=np.int16)
+        for i in range(len(predictions)):
+            current_max_class  = np.argmax(predictions[i])
+            max_class[i] = current_max_class
+
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
-        features_shape = (transfer_values.shape[0], transfer_values.shape[1] + FLAGS.num_classes_luna)
+
+        features_shape = (transfer_values.shape[0], transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
         features = np.zeros(shape=features_shape, dtype=np.float32)
         features[:, 0:transfer_values.shape[1]] = transfer_values
         features[:, transfer_values.shape[1]:transfer_values.shape[1] + FLAGS.num_classes_luna] = predictions
-        input_features[patient_id] = features
+        features[:, transfer_values.shape[1] + FLAGS.num_classes_luna: transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier] = max_class
+
+        num_0 = 0
+        num_1 = 0
+        num_2 = 0
+        num_3 = 0
+
+        for i in range(0, transfer_values.shape[0]):
+            if (features[i, 516] == 0.0):
+                num_0 = num_0 + 1
+
+            if (features[i, 516] == 1.0):
+                num_1 = num_1 + 1
+
+            if (features[i, 516] == 2.0):
+                num_2 = num_2 + 1
+
+            if (features[i, 516] == 3.0):
+                num_3 = num_3 + 1
+
+        features_shape_0 = (num_0, transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
+        features_0 = np.zeros(shape=features_shape_0, dtype=np.float32)
+
+        features_shape_1 = (num_1, transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
+        features_1 = np.zeros(shape=features_shape_1, dtype=np.float32)
+
+        features_shape_2 = (num_2, transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
+        features_2 = np.zeros(shape=features_shape_2, dtype=np.float32)
+
+        features_shape_3 = (num_3, transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
+        features_3 = np.zeros(shape=features_shape_3, dtype=np.float32)
+
+        index0 = 0
+        index1 = 0
+        index2 = 0
+        index3 = 0
+
+        for i in range(0, transfer_values.shape[0]):
+            if (features[i, 516] == 0.0):
+                features_0[index0] = features[i,:]
+                index0 = index0 + 1
+
+            if (features[i, 516] == 1.0):
+                features_1[index1] = features[i,:]
+                index1 = index1 + 1
+
+            if (features[i, 516] == 2.0):
+                features_2[index2] = features[i,:]
+                index2 = index2 + 1
+
+            if (features[i, 516] == 3.0):
+                features_3[index3] = features[i,:]
+                index3 = index3 + 1
+
+        features_0 = np.mean(features_0, axis = 0)
+        features_1 = np.mean(features_1, axis = 0)
+        features_2 = np.mean(features_2, axis = 0)
+        features_3 = np.mean(features_3, axis = 0)
+
+        features_flattened = np.concatenate((features_0, features_1), axis = 0)
+        features_flattened = np.concatenate((features_flattened, features_2) , axis = 0)
+        features_flattened = np.concatenate((features_flattened, features_3) , axis = 0)
+
+        input_features[patient_id] = features_flattened
         count = count + 1
+
         print('Loaded data for patient {}/{}'.format(count, num_patients))
+
     return input_features
 
 def conv1d(inputs,             # The previous layer.
@@ -106,40 +190,40 @@ def dense_1d(inputs,
             layer = tf.matmul(inputs, weights) + biases
         return layer
 
-def get_training_batch(train_x_ids, train_y, batch_size, X_dict):
-    num_images = len(train_x_ids)
+def get_training_batch(train_x, train_y, batch_size):
+    num_images = len(train_x)
     idx = np.random.choice(num_images,
                            size=batch_size,
                            replace=False)
-    x_batch_ids = train_x_ids[idx]
-    y_batch_temp = train_y[idx]
+    x_batch = img_to_rgb(train_x[idx])
+    y_batch = train_y[idx]
 
-    x_batch = np.ndarray([batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
-    y_batch = np.ndarray([batch_size, FLAGS.num_classes])
-    for i in range(len(x_batch_ids)):
-        key = x_batch_ids[i]
-        x_batch[i] = img_to_rgb(X_dict[key])
-        y_batch[i] = y_batch_temp[i]
+    # x_batch = np.ndarray([batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
+    # y_batch = np.ndarray([batch_size, FLAGS.num_classes])
+    # for i in range(len(x_batch_ids)):
+    #     key = DATA_PATH + x_batch_ids[i]
+    #     x_batch[i] = img_to_rgb(X_dict[key])
+    #     y_batch[i] = y_batch_temp[i]
 
     return x_batch, y_batch
 
-def get_validation_batch(validation_x_ids, validation_y, batch_number, batch_size, X_dict):
-    num_images = len(validation_x_ids)
+def get_validation_batch(validation_x, validation_y, batch_number, batch_size):
+    num_images = len(validation_x)
 
     start_index = batch_number * batch_size
     end_index = start_index + batch_size
     end_index = num_images if end_index > num_images else end_index
-    real_batch_size = end_index - start_index
+    # real_batch_size = end_index - start_index
 
-    x_batch = np.ndarray([real_batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
-    y_batch = np.ndarray([real_batch_size, FLAGS.num_classes])
+    # x_batch = np.ndarray([real_batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
+    # y_batch = np.ndarray([real_batch_size, FLAGS.num_classes])
+    #
+    # for i in range(real_batch_size):
+    #     key = DATA_PATH + alidation_x_ids[start_index + i]
+    #     x_batch[i] = img_to_rgb(X_dict[key])
+    #     y_batch[i] = validation_y[start_index + i]
 
-    for i in range(real_batch_size):
-        key = validation_x_ids[start_index + i]
-        x_batch[i] = img_to_rgb(X_dict[key])
-        y_batch[i] = validation_y[start_index + i]
-
-    return x_batch, y_batch
+    return img_to_rgb(validation_x[start_index : end_index]), validation_y[start_index : end_index]
 
 def save_model(sess, model_id, saver):
     checkpoint_folder = os.path.join(MODELS, model_id)
@@ -148,57 +232,35 @@ def save_model(sess, model_id, saver):
     save_path = os.path.join(checkpoint_folder, 'model')
     saver.save(sess=sess, save_path=save_path)
 
-def get_ids(PATH):
-    patient_ids = []
-    for path in glob.glob(DATA_PATH_PREPROCESS + "*_transfer_values.npy"):
-        patient_id = re.match(r'([a-f0-9].*)_transfer_values.npy', os.path.basename(path)).group(1)
-        patient_ids.append(patient_id)
-    return patient_ids
-
 def train_nn():
     print('Loading data..')
     time0 = time.time()
     patient_ids = set()
 
-    patient_ids = set(get_ids(DATA_PATH_PREPROCESS))
-
-    X_list = []
-    Y_list = []
-    X_dict = {}
-
+    for file_path in glob.glob(DATA_PATH + "*_transfer_values.npy"):
+        filename = os.path.basename(file_path)
+        patient_id = re.match(r'([a-f0-9].*)_transfer_values.npy', filename).group(1)
+        patient_ids.add(patient_id)
 
     sample_submission = pd.read_csv(STAGE1_SUBMISSION)
     test_patient_ids = set(sample_submission['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
 
-    for path in glob.glob(DATA_PATH_POSTPROCESS + "X_dict/*"):
-        X_dict_pkl_file = open(os.path.join(path), 'rb')
-        X_dict_temp = pickle.load(X_dict_pkl_file)
-        X_dict.update(X_dict_temp)
-        X_dict_pkl_file.close()
+    train_inputs = get_patient_features(train_patient_ids)
+    train_labels = get_patient_labels(train_patient_ids)
 
-    X_list_pkl_file = open(os.path.join(DATA_PATH_POSTPROCESS, 'X_list.pkl'), 'rb')
-    X_list = pickle.load(X_list_pkl_file)
-    X_list_pkl_file.close()
+    num_patients = len(train_patient_ids)
+    X = np.ndarray(shape=(num_patients, 2068), dtype=np.float32)
+    Y = np.ndarray(shape=(num_patients), dtype=np.float32)
 
-
-    Y_list_pkl_file = open(os.path.join(DATA_PATH_POSTPROCESS, 'Y_list.pkl'), 'rb')
-    Y_list = pickle.load(Y_list_pkl_file)
-    Y_list_pkl_file.close()
-
-    print("len(X_dict)", len(X_dict))
-    print("len(X_list)", len(X_list))
-    print("len(X_list)", len(X_list))
-
-
-    num_chunks = len(X_list)
-
-    X = np.asarray(X_list)
-    Y = np.asarray(Y_list)
+    count = 0
+    for key in train_inputs.keys():
+        X[count] = train_inputs[key]
+        Y[count] = train_labels[key]
+        count = count + 1
 
     print('X.shape: {}'.format(X.shape))
     print('Y.shape: {}'.format(Y.shape))
-    print('X_dict.len {}'.format(len(X_dict)))
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
     print('\nSplitting data into train, validation')
@@ -221,10 +283,10 @@ def train_nn():
 
     def feed_dict(is_train, batch_number = 0):
         if is_train:
-            x_batch, y_batch = get_training_batch(train_x, train_y, FLAGS.batch_size, X_dict)
+            x_batch, y_batch = get_training_batch(train_x, train_y, FLAGS.batch_size)
             k = FLAGS.dropout
         else:
-            x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number, FLAGS.batch_size, X_dict)
+            x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number, FLAGS.batch_size)
             k = 1.0
 
         return {x: x_batch, y_labels: y_batch, keep_prob: k}
@@ -232,7 +294,7 @@ def train_nn():
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
-        x = tf.placeholder(tf.float32, shape=[None, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], name = 'x')
+        x = tf.placeholder(tf.float32, shape=[None, 2068, 1], name = 'x')
         y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
         y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
         keep_prob = tf.placeholder(tf.float32)
@@ -354,8 +416,12 @@ def train_nn():
                     sum_validation_pred += (end_time - start_time)
                     test_writer.add_summary(step_summary, k_count)
                     k_count = k_count + 1
-                # tqdm.write('get_batch_validation: {}'.format(sum_validation_batch/k_count))
-                # tqdm.write('predict_validation: {}'.format(sum_validation_pred/k_count))
+                tqdm.write('get_batch_validation: {}'.format(sum_validation_batch/k_count))
+                tqdm.write('predict_validation: {}'.format(sum_validation_pred/k_count))
+
+                if (i > 0):
+                    tqdm.write('get_batch_training: {}'.format(sum_training_batch/i))
+                    tqdm.write('predict_validation: {}'.format(sum_training_pred/i))
 
             else:
                 # Train
@@ -370,8 +436,7 @@ def train_nn():
                 sum_training_pred += (end_time - start_time)
 
                 train_writer.add_summary(step_summary, i)
-                # tqdm.write('get_batch_training: {}'.format(sum_training_batch/i))
-                # tqdm.write('predict_validation: {}'.format(sum_training_pred/i))
+
 
         train_writer.close()
         test_writer.close()
@@ -451,8 +516,7 @@ def train_nn():
 if __name__ == '__main__':
     start_time = time.time()
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH_PREPROCESS = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
-    DATA_PATH_POSTPROCESS = '/kaggle_3/stage1_features_v3_1_chunked/'
+    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
@@ -470,13 +534,13 @@ if __name__ == '__main__':
                                 """Number of classes predicted by LUNA model.""")
     tf.app.flags.DEFINE_integer('transfer_values_shape', 512,
                                 'Size of transfer values')
-    tf.app.flags.DEFINE_integer('batch_size', 1024,
+    tf.app.flags.DEFINE_integer('batch_size', 32,
                                 """Number of items in a batch.""")
     tf.app.flags.DEFINE_integer('max_iterations', 60000,
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_float('reg_constant', 0.1, 'Regularization constant.')
     tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout')
-
+    tf.app.flags.DEFINE_integer('max_class_identifier', 1, 'max_class_identifier')
     ## Tensorflow specific
     tf.app.flags.DEFINE_boolean('log_device_placement', False,
                                 """Whether to log device placement.""")
