@@ -34,39 +34,52 @@ def get_patient_labels(patient_ids):
 
 def get_patient_features(patient_ids):
     input_features = {}
-    PERCENTAGE_TRESHOLD_0 = 0.97
-    PERCENTAGE_TRESHOLD_1 = 0.97
-    PERCENTAGE_TRESHOLD_2 = 0.97
-    PERCENTAGE_TRESHOLD_3 = 0.97
+    MAX_CLASS_IDENTIFIER  = 2
+    NUM_BINS_3 = 10
+    NUM_BINS_2 = 10
+    NUM_BINS_1 = 10
+    NUM_BINS_0 = 10
 
-    PERCENTAGE_TRESHOLD = 0.95
+
+    import sys
+    orig_stdout = sys.stdout
+    f = open('myfile.txt', 'w')
+    sys.stdout = f
 
     num_patients = len(patient_ids)
     count = 0
     for patient_id in patient_ids:
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
-
-        max_class_shape = (predictions.shape[0], 1)
-        max_class = np.zeros(shape=max_class_shape, dtype=np.int16)
-        for i in range(len(predictions)):
-
-            max_val = np.amax(predictions[i])
-
-            if max_val >= PERCENTAGE_TRESHOLD:
-                current_max_class  = np.argmax(predictions[i])
-                max_class[i] = current_max_class
-            else:
-                max_class[i] = -5.0
-
-
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
+
+        # max_class_shape = (predictions.shape[0], MAX_CLASS_IDENTIFIER)
+        # max_class = np.zeros(shape=max_class_shape, dtype=np.float32)
+        # for i in range(len(predictions)):
+        #     current_max_class  = np.argmax(predictions[i])
+        #     current_max_confidence = np.amax(predictions[i])
+        #     max_class[i,0] = current_max_class
+        #     max_class[i,1] = current_max_confidence
 
 
         features_shape = (transfer_values.shape[0], transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
         features = np.zeros(shape=features_shape, dtype=np.float32)
         features[:, 0:transfer_values.shape[1]] = transfer_values
         features[:, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES] = predictions
-        features[:, transfer_values.shape[1] + NUM_CLASSES: transfer_values.shape[1] + NUM_CLASSES+ MAX_CLASS_IDENTIFIER] = max_class
+
+        for i in range(len(features)):
+            argmax_class = np.argmax(features[i, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES])
+            amax_class = np.amax(features[i, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES])
+            features[i, -2] = argmax_class
+            features[i, -1] = amax_class
+
+        # print('---analysis----')
+        # print(features[-1].shape)
+        # print('tranfer_values', features[-1,0:transfer_values.shape[1]])
+        # print('predictions' , features[-1,transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES])
+        # print('argmax_class', features[-1, -2])
+        # print('amax_class', features[-1, -1])
+
+
 
         num_0 = 0
         num_1 = 0
@@ -85,6 +98,8 @@ def get_patient_features(patient_ids):
 
             if (features[i, 516] == 3.0):
                 num_3 = num_3 + 1
+
+        print(num_0, num_1, num_2, num_3)
 
         features_shape_0 = (num_0, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
         features_0 = np.zeros(shape=features_shape_0, dtype=np.float32)
@@ -120,20 +135,112 @@ def get_patient_features(patient_ids):
                 features_3[index3] = features[i,:]
                 index3 = index3 + 1
 
-        features_0 = np.mean(features_0, axis = 0)
-        features_1 = np.mean(features_1, axis = 0)
-        features_2 = np.mean(features_2, axis = 0)
-        features_3 = np.mean(features_3, axis = 0)
+        print('--construction---')
+        print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
 
-        features_flattened = np.concatenate((features_0, features_1), axis = 0)
-        features_flattened = np.concatenate((features_flattened, features_2) , axis = 0)
-        features_flattened = np.concatenate((features_flattened, features_3) , axis = 0)
+        # print('pre-sort')
+        # print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
+        # print(features_3[:, 512:518])
+
+        # Sorting in descending order because want to get the most confident predictions in the smallest bin
+        features_0 = features_0[features_0[:,-1].argsort()[::-1]]
+        features_1 = features_1[features_1[:,-1].argsort()[::-1]]
+        features_2 = features_2[features_2[:,-1].argsort()[::-1]]
+        features_3 = features_3[features_3[:,-1].argsort()[::-1]]
 
 
-        input_features[patient_id] = features_flattened
+        #class_0
+        bin_size_0 = math.ceil(features_0.shape[0]/NUM_BINS_0)
+        features_bin_0_shape = (NUM_BINS_0, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
+        features_bin_0 = np.zeros(shape=features_bin_0_shape, dtype=np.float32)
+        start_index_0 = 0
+        for i in range(len(features_bin_0)):
+            if start_index_0 > len(features_0):
+                features_bin_0[i,:] = 0.0
+            else:
+                features_bin_0[i,:] = np.mean(features_0[start_index_0:start_index_0 + bin_size_0,:], axis=0)
+            start_index_0 = start_index_0 + bin_size_0
+
+
+        #class_1
+        bin_size_1 = math.ceil(features_1.shape[0]/NUM_BINS_1)
+        features_bin_1_shape = (NUM_BINS_1, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
+        features_bin_1 = np.zeros(shape=features_bin_1_shape, dtype=np.float32)
+        start_index_1 = 0
+        for i in range(len(features_bin_1)):
+            if start_index_1 > len(features_1):
+                features_bin_1[i,:] = 0.0
+            else:
+                features_bin_1[i,:] = np.mean(features_1[start_index_1:start_index_1 + bin_size_1,:], axis=0)
+            start_index_1 = start_index_1 + bin_size_1
+
+
+        #class_2
+        bin_size_2 = math.ceil(features_2.shape[0]/NUM_BINS_2)
+        features_bin_2_shape = (NUM_BINS_2, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
+        features_bin_2 = np.zeros(shape=features_bin_2_shape, dtype=np.float32)
+        start_index_2 = 0
+        for i in range(len(features_bin_2)):
+            if start_index_2 > len(features_2):
+                features_bin_2[i,:] = 0.0
+            else:
+                features_bin_2[i,:] = np.mean(features_2[start_index_2:start_index_2 + bin_size_2,:], axis=0)
+            start_index_2 = start_index_2 + bin_size_2
+
+
+
+        # print('-----pre-binning')
+        # print(features_3[:, 512:518])
+
+        bin_size_3 = math.ceil(features_3.shape[0]/NUM_BINS_3)
+        features_bin_3_shape = (NUM_BINS_3, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
+        features_bin_3 = np.zeros(shape=features_bin_3_shape, dtype=np.float32)
+        start_index_3 = 0
+        for i in range(len(features_bin_3)):
+            if start_index_3 > len(features_3):
+                features_bin_3[i,:] = 0.0
+            else:
+                features_bin_3[i,:] = np.mean(features_3[start_index_3:start_index_3 + bin_size_3,:], axis=0)
+            start_index_3 = start_index_3 + bin_size_3
+
+        print('-----pre-binning')
+        print(features_0[:, 512:518])
+        print(features_1[:, 512:518])
+        print(features_2[:, 512:518])
+        print(features_3[:, 512:518])
+
+        print('-----post-binning')
+        print(features_bin_0[:, 512:518])
+        print(features_bin_1[:, 512:518])
+        print(features_bin_2[:, 512:518])
+        print(features_bin_3[:, 512:518])
+
+        # print('shape', features_bin_3.shape)
+        # # f.close()
+
+
+
+
+
+
+
+
+
+
+        # features_0 = np.mean(features_0, axis = 0)
+        # features_1 = np.mean(features_1, axis = 0)
+        # features_2 = np.mean(features_2, axis = 0)
+        # features_3 = np.mean(features_3, axis = 0)
+
+        # features_flattened = np.concatenate((features_0, features_1), axis = 0)
+        # features_flattened = np.concatenate((features_flattened, features_2) , axis = 0)
+        # features_flattened = np.concatenate((features_flattened, features_3) , axis = 0)
+
+
+        # input_features[patient_id] = features_flattened
         count = count + 1
 
-        print('Loaded data for patient {}/{}'.format(count, num_patients))
+        # print('Loaded data for patient {}/{}'.format(count, num_patients))
 
     return input_features
 
@@ -158,7 +265,7 @@ def make_submission():
     print('Loading data..')
     time0 = time.time()
     patient_ids = set()
-    for file_path in glob.glob(DATA_PATH + "*_transfer_values.npy"):
+    for file_path in glob.glob(DATA_PATH + "*_transfer_values.npy")[0:20]:
         filename = os.path.basename(file_path)
         patient_id = re.match(r'([a-f0-9].*)_transfer_values.npy', filename).group(1)
         patient_ids.add(patient_id)
@@ -180,7 +287,7 @@ def make_submission():
         X[count] = train_inputs[key]
         Y[count] = train_labels[key]
         count = count + 1
-
+    quit()
     print('Loaded train data for {} patients'.format(count))
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
     print('\nSplitting data into train, validation')
@@ -233,7 +340,6 @@ if __name__ == '__main__':
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     NUM_CLASSES = 4
     FEATURES_SHAPE = 1200
-    MAX_CLASS_IDENTIFIER  = 1
 
     make_submission()
     end_time = time.time()
