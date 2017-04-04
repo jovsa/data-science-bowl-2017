@@ -35,10 +35,10 @@ def get_patient_labels(patient_ids):
 def get_patient_features(patient_ids):
     input_features = {}
     MAX_CLASS_IDENTIFIER  = 2
-    NUM_BINS_3 = 10000
-    NUM_BINS_2 = 10000
-    NUM_BINS_1 = 10000
-    NUM_BINS_0 = 10000
+    NUM_BINS_3 = 1000
+    NUM_BINS_2 = 1000
+    NUM_BINS_1 = 1000
+    NUM_BINS_0 = 1000
 
 
     # import sys
@@ -315,18 +315,18 @@ def make_submission():
     timestamp = str(int(time.time()))
     filename = OUTPUT_PATH + 'submission-' + timestamp + ".csv"
 
-    quit()
-    with open(filename, 'w') as csvfile:
-        submission_writer = csv.writer(csvfile, delimiter=',')
-        submission_writer.writerow(['id', 'cancer'])
 
-        print('\nPredicting on test set')
-        for key in test_inputs.keys():
-            x = test_inputs[key]
-            y = clf.predict([x])
-            submission_writer.writerow([key, y[0]])
+    # with open(filename, 'w') as csvfile:
+    #     submission_writer = csv.writer(csvfile, delimiter=',')
+    #     submission_writer.writerow(['id', 'cancer'])
 
-    print('Generated submission file: {}'.format(filename))
+    #     print('\nPredicting on test set')
+    #     for key in test_inputs.keys():
+    #         x = test_inputs[key]
+    #         y = clf.predict([x])
+    #         submission_writer.writerow([key, y[0]])
+
+    # print('Generated submission file: {}'.format(filename))
 
 if __name__ == '__main__':
     start_time = time.time()
