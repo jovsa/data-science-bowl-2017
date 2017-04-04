@@ -100,7 +100,7 @@ def get_patient_features(patient_ids):
             if (features[i, 516] == 3.0):
                 num_3 = num_3 + 1
 
-        print(num_0, num_1, num_2, num_3)
+        # print(num_0, num_1, num_2, num_3)
 
         features_shape_0 = (num_0, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
         features_0 = np.zeros(shape=features_shape_0, dtype=np.float32)
@@ -136,9 +136,9 @@ def get_patient_features(patient_ids):
                 features_3[index3] = features[i,:]
                 index3 = index3 + 1
 
-        print('--construction---')
-        print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
-        print(len(features_0), len(features_1), len(features_2), len(features_3) )
+        # print('--construction---')
+        # print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
+        # print(len(features_0), len(features_1), len(features_2), len(features_3) )
 
         # print('pre-sort')
         # print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
@@ -195,7 +195,7 @@ def get_patient_features(patient_ids):
         # print(features_3[:, 512:518])
 
 
-        #class_2
+        #class_3
         bin_size_3 = math.ceil(features_3.shape[0]/NUM_BINS_3)
         features_bin_3_shape = (NUM_BINS_3, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
         features_bin_3 = np.zeros(shape=features_bin_3_shape, dtype=np.float32)
@@ -208,8 +208,8 @@ def get_patient_features(patient_ids):
             start_index_3 = start_index_3 + bin_size_3
 
 
-        print('--binned---')
-        print(features_bin_0.shape, features_bin_1.shape, features_bin_2.shape, features_bin_3.shape)
+        # print('--binned---')
+        # print(features_bin_0.shape, features_bin_1.shape, features_bin_2.shape, features_bin_3.shape)
 
         # print('-----pre-binning')
         # print(features_0[:, 512:518])
