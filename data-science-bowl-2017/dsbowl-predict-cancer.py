@@ -34,6 +34,13 @@ def get_patient_labels(patient_ids):
 
 def get_patient_features(patient_ids):
     input_features = {}
+    PERCENTAGE_TRESHOLD_0 = 0.97
+    PERCENTAGE_TRESHOLD_1 = 0.97
+    PERCENTAGE_TRESHOLD_2 = 0.97
+    PERCENTAGE_TRESHOLD_3 = 0.97
+
+    PERCENTAGE_TRESHOLD = 0.95
+
     num_patients = len(patient_ids)
     count = 0
     for patient_id in patient_ids:
@@ -42,8 +49,14 @@ def get_patient_features(patient_ids):
         max_class_shape = (predictions.shape[0], 1)
         max_class = np.zeros(shape=max_class_shape, dtype=np.int16)
         for i in range(len(predictions)):
-            current_max_class  = np.argmax(predictions[i])
-            max_class[i] = current_max_class
+
+            max_val = np.amax(predictions[i])
+
+            if max_val >= PERCENTAGE_TRESHOLD:
+                current_max_class  = np.argmax(predictions[i])
+                max_class[i] = current_max_class
+            else:
+                max_class[i] = -5.0
 
 
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
