@@ -41,13 +41,14 @@ def get_patient_features(patient_ids):
     NUM_BINS_0 = 10
 
 
-    import sys
-    orig_stdout = sys.stdout
-    f = open('myfile.txt', 'w')
-    sys.stdout = f
+    # import sys
+    # orig_stdout = sys.stdout
+    # f = open('myfile.txt', 'w')
+    # sys.stdout = f
 
     num_patients = len(patient_ids)
     count = 0
+    input_feature_flattened_dims = 0
     for patient_id in patient_ids:
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
@@ -137,6 +138,7 @@ def get_patient_features(patient_ids):
 
         print('--construction---')
         print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
+        print(len(features_0), len(features_1), len(features_2), len(features_3) )
 
         # print('pre-sort')
         # print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
@@ -155,7 +157,7 @@ def get_patient_features(patient_ids):
         features_bin_0 = np.zeros(shape=features_bin_0_shape, dtype=np.float32)
         start_index_0 = 0
         for i in range(len(features_bin_0)):
-            if start_index_0 > len(features_0):
+            if start_index_0 >= len(features_0):
                 features_bin_0[i,:] = 0.0
             else:
                 features_bin_0[i,:] = np.mean(features_0[start_index_0:start_index_0 + bin_size_0,:], axis=0)
@@ -168,7 +170,7 @@ def get_patient_features(patient_ids):
         features_bin_1 = np.zeros(shape=features_bin_1_shape, dtype=np.float32)
         start_index_1 = 0
         for i in range(len(features_bin_1)):
-            if start_index_1 > len(features_1):
+            if start_index_1 >= len(features_1):
                 features_bin_1[i,:] = 0.0
             else:
                 features_bin_1[i,:] = np.mean(features_1[start_index_1:start_index_1 + bin_size_1,:], axis=0)
@@ -181,7 +183,7 @@ def get_patient_features(patient_ids):
         features_bin_2 = np.zeros(shape=features_bin_2_shape, dtype=np.float32)
         start_index_2 = 0
         for i in range(len(features_bin_2)):
-            if start_index_2 > len(features_2):
+            if start_index_2 >= len(features_2):
                 features_bin_2[i,:] = 0.0
             else:
                 features_bin_2[i,:] = np.mean(features_2[start_index_2:start_index_2 + bin_size_2,:], axis=0)
@@ -192,57 +194,49 @@ def get_patient_features(patient_ids):
         # print('-----pre-binning')
         # print(features_3[:, 512:518])
 
+
+        #class_2
         bin_size_3 = math.ceil(features_3.shape[0]/NUM_BINS_3)
         features_bin_3_shape = (NUM_BINS_3, transfer_values.shape[1] + NUM_CLASSES + MAX_CLASS_IDENTIFIER)
         features_bin_3 = np.zeros(shape=features_bin_3_shape, dtype=np.float32)
         start_index_3 = 0
         for i in range(len(features_bin_3)):
-            if start_index_3 > len(features_3):
+            if start_index_3 >= len(features_3):
                 features_bin_3[i,:] = 0.0
             else:
                 features_bin_3[i,:] = np.mean(features_3[start_index_3:start_index_3 + bin_size_3,:], axis=0)
             start_index_3 = start_index_3 + bin_size_3
 
-        print('-----pre-binning')
-        print(features_0[:, 512:518])
-        print(features_1[:, 512:518])
-        print(features_2[:, 512:518])
-        print(features_3[:, 512:518])
 
-        print('-----post-binning')
-        print(features_bin_0[:, 512:518])
-        print(features_bin_1[:, 512:518])
-        print(features_bin_2[:, 512:518])
-        print(features_bin_3[:, 512:518])
+        print('--binned---')
+        print(features_bin_0.shape, features_bin_1.shape, features_bin_2.shape, features_bin_3.shape)
+
+        # print('-----pre-binning')
+        # print(features_0[:, 512:518])
+        # print(features_1[:, 512:518])
+        # print(features_2[:, 512:518])
+        # print(features_3[:, 512:518])
+
+        # print('-----post-binning')
+        # print(features_bin_0[:, 512:518])
+        # print(features_bin_1[:, 512:518])
+        # print(features_bin_2[:, 512:518])
+        # print(features_bin_3[:, 512:518])
 
         # print('shape', features_bin_3.shape)
         # # f.close()
 
 
+        features_flattened = np.concatenate((features_bin_0, features_bin_1), axis = 0)
+        features_flattened = np.concatenate((features_flattened, features_bin_2) , axis = 0)
+        features_flattened = np.concatenate((features_flattened, features_bin_3) , axis = 0)
 
-
-
-
-
-
-
-
-        # features_0 = np.mean(features_0, axis = 0)
-        # features_1 = np.mean(features_1, axis = 0)
-        # features_2 = np.mean(features_2, axis = 0)
-        # features_3 = np.mean(features_3, axis = 0)
-
-        # features_flattened = np.concatenate((features_0, features_1), axis = 0)
-        # features_flattened = np.concatenate((features_flattened, features_2) , axis = 0)
-        # features_flattened = np.concatenate((features_flattened, features_3) , axis = 0)
-
-
-        # input_features[patient_id] = features_flattened
+        input_features_flattened_dims = features_flattened.flatten().shape[0]
+        input_features[patient_id] = features_flattened.flatten()
         count = count + 1
+        print('Loaded data for patient {}/{}'.format(count, num_patients))
 
-        # print('Loaded data for patient {}/{}'.format(count, num_patients))
-
-    return input_features
+    return input_features_flattened_dims, input_features
 
 def train_xgboost(trn_x, val_x, trn_y, val_y):
     clf = xgb.XGBRegressor(max_depth=10,
@@ -265,7 +259,7 @@ def make_submission():
     print('Loading data..')
     time0 = time.time()
     patient_ids = set()
-    for file_path in glob.glob(DATA_PATH + "*_transfer_values.npy")[0:20]:
+    for file_path in glob.glob(DATA_PATH + "*_transfer_values.npy"):
         filename = os.path.basename(file_path)
         patient_id = re.match(r'([a-f0-9].*)_transfer_values.npy', filename).group(1)
         patient_ids.add(patient_id)
@@ -274,20 +268,21 @@ def make_submission():
     #df = pd.merge(sample_submission, patient_ids_df, how='inner', on=['id'])
     test_patient_ids = set(sample_submission['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
-    train_inputs = get_patient_features(train_patient_ids)
+    train_dims, train_inputs = get_patient_features(train_patient_ids)
     train_labels = get_patient_labels(train_patient_ids)
 
     num_patients = len(train_patient_ids)
-    X = np.ndarray(shape=(num_patients, 2068), dtype=np.float32)
-    Y = np.ndarray(shape=(num_patients), dtype=np.float32)
 
+
+    X = np.ndarray(shape=(num_patients, train_dims), dtype=np.float32)
+    Y = np.ndarray(shape=(num_patients), dtype=np.float32)
 
     count = 0
     for key in train_inputs.keys():
         X[count] = train_inputs[key]
         Y[count] = train_labels[key]
         count = count + 1
-    quit()
+
     print('Loaded train data for {} patients'.format(count))
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
     print('\nSplitting data into train, validation')
