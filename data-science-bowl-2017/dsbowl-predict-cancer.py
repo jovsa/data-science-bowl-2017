@@ -35,10 +35,10 @@ def get_patient_labels(patient_ids):
 def get_patient_features(patient_ids):
     input_features = {}
     MAX_CLASS_IDENTIFIER  = 2
-    NUM_BINS_3 = 10
-    NUM_BINS_2 = 10
-    NUM_BINS_1 = 10
-    NUM_BINS_0 = 10
+    NUM_BINS_3 = 10000
+    NUM_BINS_2 = 10000
+    NUM_BINS_1 = 10000
+    NUM_BINS_0 = 10000
 
 
     # import sys
@@ -252,7 +252,7 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
                            max_delta_step=1,
                            reg_alpha=0.1,
                            reg_lambda=0.5)
-    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
+    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=100)
     return clf
 
 def make_submission():
@@ -309,12 +309,13 @@ def make_submission():
     #print(validation_y_predicted)
 
     num_patients = len(test_patient_ids)
-    test_inputs = get_patient_features(test_patient_ids)
-    X = np.ndarray(shape=(num_patients, FEATURES_SHAPE * FEATURES_SHAPE), dtype=np.float32)
+    test_dims, test_inputs = get_patient_features(test_patient_ids)
+    X = np.ndarray(shape=(num_patients, test_dims), dtype=np.float32)
 
     timestamp = str(int(time.time()))
     filename = OUTPUT_PATH + 'submission-' + timestamp + ".csv"
 
+    quit()
     with open(filename, 'w') as csvfile:
         submission_writer = csv.writer(csvfile, delimiter=',')
         submission_writer.writerow(['id', 'cancer'])
