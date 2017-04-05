@@ -35,10 +35,10 @@ def get_patient_labels(patient_ids):
 def get_patient_features(patient_ids):
     input_features = {}
     MAX_CLASS_IDENTIFIER  = 2
-    NUM_BINS_3 = 20
-    NUM_BINS_2 = 20
-    NUM_BINS_1 = 20
-    NUM_BINS_0 = 20
+    NUM_BINS_3 = 10
+    NUM_BINS_2 = 10
+    NUM_BINS_1 = 10
+    NUM_BINS_0 = 10
 
     TRESHOLD_3 = 0.97
     TRESHOLD_2 = 0.70
