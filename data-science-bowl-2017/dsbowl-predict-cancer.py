@@ -35,15 +35,15 @@ def get_patient_labels(patient_ids):
 def get_patient_features(patient_ids):
     input_features = {}
     MAX_CLASS_IDENTIFIER  = 2
-    NUM_BINS_3 = 10
-    NUM_BINS_2 = 10
-    NUM_BINS_1 = 10
-    NUM_BINS_0 = 10
+    NUM_BINS_3 = 1000
+    NUM_BINS_2 = 100
+    NUM_BINS_1 = 100
+    NUM_BINS_0 = 100
 
-    TRESHOLD_3 = 0.20
-    TRESHOLD_2 = 0.20
-    TRESHOLD_1 = 0.20
-    TRESHOLD_0 = 0.20
+    TRESHOLD_3 = 0.00
+    TRESHOLD_2 = 0.00
+    TRESHOLD_1 = 0.00
+    TRESHOLD_0 = 0.00
 
 
     # import sys
@@ -56,7 +56,7 @@ def get_patient_features(patient_ids):
     input_feature_flattened_dims = 0
     for patient_id in patient_ids:
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
-        transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values_dense_7.npy'))
+        transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
 
         # max_class_shape = (predictions.shape[0], MAX_CLASS_IDENTIFIER)
         # max_class = np.zeros(shape=max_class_shape, dtype=np.float32)
@@ -86,11 +86,13 @@ def get_patient_features(patient_ids):
                 features[i, -1] = -10.0
 
         # print('---analysis----')
-        # print(features.shape)
+        # print(features[-1].shape)
         # print('tranfer_values', features[-1,0:transfer_values.shape[1]])
         # print('predictions' , features[-1,transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES])
         # print('argmax_class', features[-1, -2])
         # print('amax_class', features[-1, -1])
+
+
 
         num_0 = 0
         num_1 = 0
@@ -98,16 +100,16 @@ def get_patient_features(patient_ids):
         num_3 = 0
 
         for i in range(0, transfer_values.shape[0]):
-            if (features[i, -2] == 0.0):
+            if (features[i, 516] == 0.0):
                 num_0 = num_0 + 1
 
-            if (features[i, -2] == 1.0):
+            if (features[i, 516] == 1.0):
                 num_1 = num_1 + 1
 
-            if (features[i, -2] == 2.0):
+            if (features[i, 516] == 2.0):
                 num_2 = num_2 + 1
 
-            if (features[i, -2] == 3.0):
+            if (features[i, 516] == 3.0):
                 num_3 = num_3 + 1
 
         # print(num_0, num_1, num_2, num_3)
@@ -130,19 +132,19 @@ def get_patient_features(patient_ids):
         index3 = 0
 
         for i in range(0, transfer_values.shape[0]):
-            if (features[i, -2] == 0.0):
+            if (features[i, 516] == 0.0):
                 features_0[index0] = features[i,:]
                 index0 = index0 + 1
 
-            if (features[i, -2] == 1.0):
+            if (features[i, 516] == 1.0):
                 features_1[index1] = features[i,:]
                 index1 = index1 + 1
 
-            if (features[i, -2] == 2.0):
+            if (features[i, 516] == 2.0):
                 features_2[index2] = features[i,:]
                 index2 = index2 + 1
 
-            if (features[i, -2] == 3.0):
+            if (features[i, 516] == 3.0):
                 features_3[index3] = features[i,:]
                 index3 = index3 + 1
 
@@ -152,9 +154,7 @@ def get_patient_features(patient_ids):
 
         # print('pre-sort')
         # print(features_0.shape, features_1.shape, features_2.shape, features_3.shape)
-        # print(features_3[:, 134:-1])
-
-
+        # print(features_3[:, 512:518])
 
         # Sorting in descending order because want to get the most confident predictions in the smallest bin
         features_0 = features_0[features_0[:,-1].argsort()[::-1]]
@@ -200,6 +200,11 @@ def get_patient_features(patient_ids):
             else:
                 features_bin_2[i,:] = np.mean(features_2[start_index_2:start_index_2 + bin_size_2,:], axis=0)
             start_index_2 = start_index_2 + bin_size_2
+
+
+
+        # print('-----pre-binning')
+        # print(features_3[:, 512:518])
 
 
         #class_3
