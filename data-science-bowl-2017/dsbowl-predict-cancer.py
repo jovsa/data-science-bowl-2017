@@ -40,10 +40,10 @@ def get_patient_features(patient_ids):
     NUM_BINS_1 = 20
     NUM_BINS_0 = 20
 
-    TRESHOLD_3 = 0.95
-    TRESHOLD_2 = 0.90
-    TRESHOLD_1 = 0.90
-    TRESHOLD_0 = 0.90
+    TRESHOLD_3 = 0.97
+    TRESHOLD_2 = 0.70
+    TRESHOLD_1 = 0.70
+    TRESHOLD_0 = 0.70
 
 
     # import sys
@@ -344,7 +344,7 @@ def make_submission():
 if __name__ == '__main__':
     start_time = time.time()
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
+    DATA_PATH = '/kaggle_3/stage1_features_v4/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     NUM_CLASSES = 4
