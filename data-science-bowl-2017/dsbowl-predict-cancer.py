@@ -344,7 +344,7 @@ def make_submission():
 if __name__ == '__main__':
     start_time = time.time()
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle_3/stage1_features_v4/'
+    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     NUM_CLASSES = 4
