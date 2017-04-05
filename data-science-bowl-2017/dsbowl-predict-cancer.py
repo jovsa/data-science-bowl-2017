@@ -256,15 +256,15 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
                            objective="binary:logistic",
                            n_estimators=2500,
                            min_child_weight=96,
-                           learning_rate=0.03757,
+                           learning_rate=0.005,
                            nthread=8,
-                           subsample=0.80,
+                           subsample=0.20,
                            colsample_bytree=0.90,
                            seed=79,
                            max_delta_step=1,
                            reg_alpha=0.1,
                            reg_lambda=0.5)
-    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
+    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=100)
     return clf
 
 def make_submission():
