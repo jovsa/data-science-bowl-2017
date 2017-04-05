@@ -35,10 +35,10 @@ def get_patient_labels(patient_ids):
 def get_patient_features(patient_ids):
     input_features = {}
     MAX_CLASS_IDENTIFIER  = 2
-    NUM_BINS_3 = 100
-    NUM_BINS_2 = 100
-    NUM_BINS_1 = 100
-    NUM_BINS_0 = 100
+    NUM_BINS_3 = 100000
+    NUM_BINS_2 = 100000
+    NUM_BINS_1 = 100000
+    NUM_BINS_0 = 100000
 
     TRESHOLD_3 = 0.00
     TRESHOLD_2 = 0.00
@@ -264,7 +264,7 @@ def train_xgboost(trn_x, val_x, trn_y, val_y):
                            max_delta_step=1,
                            reg_alpha=0.1,
                            reg_lambda=0.5)
-    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
+    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=500)
     return clf
 
 def make_submission():
