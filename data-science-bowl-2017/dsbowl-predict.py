@@ -406,6 +406,7 @@ def worker(patient_uid):
         # print('X: {}'.format(X.shape))
         predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
         transfer_values = np.ndarray([X.shape[0], 512], dtype=np.float32)
+        transfer_values_dense_7 = np.ndarray([X.shape[0], 128], dtype=np.float32)
 
         num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
         for i in range(0, num_batches):
@@ -417,15 +418,16 @@ def worker(patient_uid):
                          keep_prob: 1.0}
 
             # print('X[{}]: {}'.format(i, X[batch_start:batch_end].shape))
-            pred, trans_val = sess.run([y, dense6_out], feed_dict=feed_dict)
+            pred, trans_val, trans_val_dense_7 = sess.run([y, dense6_out, dense7_out], feed_dict=feed_dict)
             predictions[batch_start: batch_end, :] = pred
             transfer_values[batch_start: batch_end, :] = trans_val
+            transfer_values_dense_7[batch_start: batch_end, :] = trans_val_dense_7
             #print('predictions: ' + str(predictions.shape))
             #print('transfer_values: ' + str(transfer_values.shape))
 
         np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
         np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
-
+        np.save(OUTPUT_PATH + patient_uid + '_transfer_values_dense_7.npy', transfer_values_dense_7)
         del x_in, X
 
     sess.close()
@@ -462,7 +464,6 @@ def predict_features():
                 p1.start()
                 p2.start()
 
-
                 p0.join()
                 p1.join()
                 p2.join()
@@ -477,18 +478,12 @@ def predict_features():
         del processed_patients
         del uids
 
-
-
-
-
-
-
 if __name__ == '__main__':
     start_time = time.time()
 
-    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
-    OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
-    PATIENT_SCANS = 'scan_segmented_lungs_fill_'
+    DATA_PATH = '/kaggle_3/stage1_processed_unseg/'
+    OUTPUT_PATH = '/kaggle_3/stage1_features_v4/'
+    PATIENT_SCANS = 'scan_lungs_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
     MODEL_PATH = '/kaggle_2/luna/luna16/models/09dc3a07-fbeb-4c86-8f79-39cddccdd84c/'
     OVERLAP_PERCENTAGE = 0.7
