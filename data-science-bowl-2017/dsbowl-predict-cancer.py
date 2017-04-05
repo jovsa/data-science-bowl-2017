@@ -35,10 +35,15 @@ def get_patient_labels(patient_ids):
 def get_patient_features(patient_ids):
     input_features = {}
     MAX_CLASS_IDENTIFIER  = 2
-    NUM_BINS_3 = 1000
-    NUM_BINS_2 = 1000
-    NUM_BINS_1 = 1000
-    NUM_BINS_0 = 1000
+    NUM_BINS_3 = 20
+    NUM_BINS_2 = 20
+    NUM_BINS_1 = 20
+    NUM_BINS_0 = 20
+
+    TRESHOLD_3 = 0.95
+    TRESHOLD_2 = 0.90
+    TRESHOLD_1 = 0.90
+    TRESHOLD_0 = 0.90
 
 
     # import sys
@@ -70,8 +75,15 @@ def get_patient_features(patient_ids):
         for i in range(len(features)):
             argmax_class = np.argmax(features[i, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES])
             amax_class = np.amax(features[i, transfer_values.shape[1]:transfer_values.shape[1] + NUM_CLASSES])
-            features[i, -2] = argmax_class
-            features[i, -1] = amax_class
+            if((argmax_class == 3 and amax_class >= TRESHOLD_3 ) or
+               (argmax_class == 2 and amax_class >= TRESHOLD_2 ) or
+               (argmax_class == 1 and amax_class >= TRESHOLD_1 ) or
+               (argmax_class == 0 and amax_class >= TRESHOLD_0 )):
+                features[i, -2] = argmax_class
+                features[i, -1] = amax_class
+            else:
+                features[i, -2] = -5.0
+                features[i, -1] = -10.0
 
         # print('---analysis----')
         # print(features[-1].shape)
@@ -239,20 +251,20 @@ def get_patient_features(patient_ids):
     return input_features_flattened_dims, input_features
 
 def train_xgboost(trn_x, val_x, trn_y, val_y):
-    clf = xgb.XGBRegressor(max_depth=10,
+    clf = xgb.XGBRegressor(max_depth=5,
                            gamma=0.5,
                            objective="binary:logistic",
-                           n_estimators=1500,
-                           min_child_weight=6,
-                           learning_rate=0.005,
+                           n_estimators=2500,
+                           min_child_weight=96,
+                           learning_rate=0.03757,
                            nthread=8,
                            subsample=0.80,
-                           colsample_bytree=0.80,
+                           colsample_bytree=0.90,
                            seed=79,
                            max_delta_step=1,
                            reg_alpha=0.1,
                            reg_lambda=0.5)
-    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=100)
+    clf.fit(trn_x, trn_y, eval_set=[(val_x, val_y)], verbose=True, eval_metric='logloss', early_stopping_rounds=50)
     return clf
 
 def make_submission():
@@ -268,6 +280,7 @@ def make_submission():
     #df = pd.merge(sample_submission, patient_ids_df, how='inner', on=['id'])
     test_patient_ids = set(sample_submission['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
+
     train_dims, train_inputs = get_patient_features(train_patient_ids)
     train_labels = get_patient_labels(train_patient_ids)
 
@@ -310,23 +323,23 @@ def make_submission():
 
     num_patients = len(test_patient_ids)
     test_dims, test_inputs = get_patient_features(test_patient_ids)
-    X = np.ndarray(shape=(num_patients, test_dims), dtype=np.float32)
 
     timestamp = str(int(time.time()))
     filename = OUTPUT_PATH + 'submission-' + timestamp + ".csv"
 
+    with open(filename, 'w') as csvfile:
+        submission_writer = csv.writer(csvfile, delimiter=',')
+        submission_writer.writerow(['id', 'cancer'])
 
-    # with open(filename, 'w') as csvfile:
-    #     submission_writer = csv.writer(csvfile, delimiter=',')
-    #     submission_writer.writerow(['id', 'cancer'])
+        print('\nPredicting on test set')
+        for key in test_inputs.keys():
+            x = test_inputs[key]
+            x = x.reshape((1,-1))
+            y = clf.predict(x)
 
-    #     print('\nPredicting on test set')
-    #     for key in test_inputs.keys():
-    #         x = test_inputs[key]
-    #         y = clf.predict([x])
-    #         submission_writer.writerow([key, y[0]])
+            submission_writer.writerow([key, y[0]])
 
-    # print('Generated submission file: {}'.format(filename))
+    print('Generated submission file: {}'.format(filename))
 
 if __name__ == '__main__':
     start_time = time.time()
