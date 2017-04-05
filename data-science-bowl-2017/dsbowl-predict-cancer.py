@@ -35,7 +35,7 @@ def get_patient_labels(patient_ids):
 def get_patient_features(patient_ids):
     input_features = {}
     MAX_CLASS_IDENTIFIER  = 2
-    NUM_BINS_3 = 10000
+    NUM_BINS_3 = 1000
     NUM_BINS_2 = 100
     NUM_BINS_1 = 100
     NUM_BINS_0 = 100
