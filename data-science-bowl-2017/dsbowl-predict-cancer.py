@@ -40,10 +40,10 @@ def get_patient_features(patient_ids):
     NUM_BINS_1 = 100
     NUM_BINS_0 = 100
 
-    TRESHOLD_3 = 0.28
-    TRESHOLD_2 = 0.34
-    TRESHOLD_1 = 0.33
-    TRESHOLD_0 = 0.08
+    TRESHOLD_3 = 0.73
+    TRESHOLD_2 = 0.66
+    TRESHOLD_1 = 0.67
+    TRESHOLD_0 = 0.92
 
 
     # import sys
