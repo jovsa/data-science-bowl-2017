@@ -461,7 +461,7 @@ def train_3d_nn():
             tf.summary.scalar('f1_score_3', f1_score_3)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_softmax_cross_entropy)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
