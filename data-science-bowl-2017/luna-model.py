@@ -145,7 +145,7 @@ def train_3d_nn():
     Y = np.argmax(Y, axis = 1)
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y, test_size=0.20)
 
-    klass_weights = np.asarray([69920.0/40591.0, 69920.0/14624.0, 69920.0/10490.0, 69920.0/4215.0])
+    klass_weights = np.asarray([69920.0/40591.0, FLAGS.class_1_2_penalty * 69920.0/14624.0, FLAGS.class_1_2_penalty * 69920.0/10490.0, 69920.0/4215.0])
     # Free up X and Y memory
     del X
     del Y
@@ -201,7 +201,7 @@ def train_3d_nn():
         keep_prob = tf.placeholder(tf.float32)
 
         class_weights_base = tf.ones_like(y_labels)
-        class_weights = tf.multiply(class_weights_base , [69920.0/40591.0, 69920.0/14624.0, 69920.0/10490.0, 69920.0/4215.0])
+        class_weights = tf.multiply(class_weights_base , [69920.0/40591.0, FLAGS.class_1_2_penalty * 69920.0/14624.0, FLAGS.class_1_2_penalty * 69920.0/10490.0, 69920.0/4215.0])
 
         # layer1
         conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = [1, 3, 3, 3, 1], layer_name ='conv1_1')
@@ -532,6 +532,7 @@ if __name__ == '__main__':
     tf.app.flags.DEFINE_integer('max_iterations', 60000,
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_float('reg_constant', 0.1, 'Regularization constant.')
+    tf.app.flags.DEFINE_float('class_1_2_penalty', 1.5, 'Extra Class 1 2 penalty')
     tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout')
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
