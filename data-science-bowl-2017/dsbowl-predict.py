@@ -21,23 +21,6 @@ pd.options.mode.chained_assignment = None
 import scipy.misc
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-def get_batch(x, y, batch_size):
-        num_images = len(x)
-        idx = np.random.choice(num_images,
-                               size=batch_size,
-                               replace=False)
-        x_batch = x[idx]
-        y_batch = y[idx]
-
-        return x_batch, y_batch
-
-def get_ids(PATH):
-    ids = []
-    for path in glob.glob(PATH + '[0-9\.]*_X.npy'):
-        patient_id = re.match(r'([0-9\.]*)_X.npy', os.path.basename(path)).group(1)
-        ids.append(patient_id)
-    return ids
-
 def img_to_rgb(im):
     n, x, y, z = im.shape
     ret = np.empty((n, x, y, z, 1), dtype=np.float32)
@@ -153,7 +136,7 @@ def get_patient_data_chunks(patient_id):
     X = np.ndarray([len(chunk_list), FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size], dtype=np.float32)
 
     for m in range(0, len(chunk_list)):
-        X[m, :, :] = chunk_list[m]
+        X[m, :, :, :] = chunk_list[m]
 
     # Normalizing and Zero Centering
     X = X.astype(np.float32, copy=False)
@@ -161,7 +144,6 @@ def get_patient_data_chunks(patient_id):
     X = zero_center(X)
     del scans
     return X
-
 
 def worker(patient_uid):
     print("start:", patient_uid )
@@ -171,52 +153,82 @@ def worker(patient_uid):
         x = tf.placeholder(tf.float32, shape=[None, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], name = 'x')
         y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
         y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
+        cross_entropy_weights = tf.placeholder(tf.float32, shape=[None], name ='cross_entropy_weights')
         keep_prob = tf.placeholder(tf.float32)
 
         class_weights_base = tf.ones_like(y_labels)
-        class_weights = tf.multiply(class_weights_base , [1000/40591.0, 1000/14624.0, 1000/10490.0, 1000/4215.0])
+        class_weights = tf.multiply(class_weights_base , [69920.0/40591.0, 69920.0/14624.0, 69920.0/10490.0, 69920.0/4215.0])
 
         # layer1
         conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = [1, 3, 3, 3, 1], layer_name ='conv1_1')
-
         relu1_1_out = relu_3d(inputs = conv1_1_out, layer_name='relu1_1')
 
-        pool1_out = max_pool_3d(inputs = relu1_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool1')
+        conv1_2_out, conv1_2_weights = conv3d(inputs = relu1_1_out, filter_size = 3, num_filters = 16, num_channels = 16, strides = [1, 3, 3, 3, 1], layer_name ='conv1_2')
+        relu1_2_out = relu_3d(inputs = conv1_2_out, layer_name='relu1_2')
+
+        pool1_out = max_pool_3d(inputs = relu1_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool1')
 
         # layer2
         conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1], layer_name ='conv2_1')
-
         relu2_1_out = relu_3d(inputs = conv2_1_out, layer_name='relu2_1')
 
-        pool2_out = max_pool_3d(inputs = relu2_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool2')
+        conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 32, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv2_2')
+        relu2_2_out = relu_3d(inputs = conv2_2_out, layer_name='relu2_2')
+
+        pool2_out = max_pool_3d(inputs = relu2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool2')
 
         # layer3
         conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv3_1')
-
         relu3_1_out = relu_3d(inputs = conv3_1_out, layer_name='relu3_1')
 
-        pool3_out = max_pool_3d(inputs = relu3_1_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool3')
+        conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_2')
+        relu3_2_out = relu_3d(inputs = conv3_2_out, layer_name='relu3_2')
 
-        dropout3_out = dropout_3d(inputs = pool3_out, keep_prob = keep_prob, layer_name='drop3')
+        conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_3')
+        relu3_3_out = relu_3d(inputs = conv3_3_out, layer_name='relu3_3')
 
-        flatten5_out, flatten5_features = flatten_3d(dropout3_out, layer_name='flatten5')
+        pool3_out = max_pool_3d(inputs = relu3_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool3')
+
+        # layer4
+        conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv4_1')
+        relu4_1_out = relu_3d(inputs = conv4_1_out, layer_name='relu4_1')
+
+        conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_2')
+        relu4_2_out = relu_3d(inputs = conv4_2_out, layer_name='relu4_2')
+
+        conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_3')
+        relu4_3_out = relu_3d(inputs = conv4_3_out, layer_name='relu4_3')
+
+        pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool4')
+
+        # layer5
+        conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv5_1')
+        relu5_1_out = relu_3d(inputs = conv5_1_out, layer_name='relu5_1')
+
+        conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_2')
+        relu5_2_out = relu_3d(inputs = conv5_2_out, layer_name='relu5_2')
+
+        conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_3')
+        relu5_3_out = relu_3d(inputs = conv5_3_out, layer_name='relu5_3')
+
+        pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool5')
+        flatten5_out, flatten5_features = flatten_3d(pool5_out, layer_name='flatten5')
 
         # layer6
-        dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=512, layer_name ='fc6')
-
+        dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, layer_name ='fc6')
         relu6_out = relu_3d(inputs = dense6_out, layer_name='relu6')
-
-        dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = keep_prob, layer_name='drop6')
+        dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, layer_name='drop6')
 
         # layer7
-        dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=128, layer_name ='fc7')
-
+        dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, layer_name ='fc7')
         relu7_out = relu_3d(inputs = dense7_out, layer_name='relu7')
+        dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, layer_name='drop7')
 
-        dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = keep_prob, layer_name='drop7')
+        # layer8
+        dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, layer_name ='fc8')
 
         # layer9
-        dense9_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=FLAGS.num_classes, layer_name ='fc9')
+        dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, layer_name ='fc9')
 
         # Final softmax
         y = tf.nn.softmax(dense9_out)
@@ -238,6 +250,20 @@ def worker(patient_uid):
         with tf.name_scope('weighted_log_loss'):
             weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15) + tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
             tf.summary.scalar('weighted_log_loss', weighted_log_loss)
+
+        with tf.name_scope('weighted_softmax_cross_entropy'):
+            weighted_softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out, weights=cross_entropy_weights)
+            tf.summary.scalar('weighted_softmax_cross_entropy', weighted_softmax_cross_entropy)
+
+        with tf.name_scope('sparse_softmax_cross_entropy'):
+            y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
+            sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out)
+            tf.summary.scalar('sparse_softmax_cross_entropy', sparse_softmax_cross_entropy)
+
+        with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
+            y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
+            weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out, weights=cross_entropy_weights)
+            tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
 
         # Class Based Metrics calculations
         y_pred_class = tf.argmax(y, 1)
@@ -358,7 +384,6 @@ def worker(patient_uid):
             tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
 
         with tf.name_scope('accuracy_by_class'):
-
             accuracy_0 = (tp_0 + tn_0)/(tp_0 + fp_0 + fn_0 + tn_0)
             accuracy_1 = (tp_1 + tn_1)/(tp_1 + fp_1 + fn_1 + tn_1)
             accuracy_2 = (tp_2 + tn_2)/(tp_2 + fp_2 + fn_2 + tn_2)
@@ -380,8 +405,19 @@ def worker(patient_uid):
             tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
             tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
 
-        # with tf.name_scope('train'):
-        #     optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
+        with tf.name_scope('f1_score_by_class'):
+            f1_score_0 = 2 * (precision_0 * recall_0) / (precision_0 + recall_0)
+            f1_score_1 = 2 * (precision_1 * recall_1) / (precision_1 + recall_1)
+            f1_score_2 = 2 * (precision_2 * recall_2) / (precision_2 + recall_2)
+            f1_score_3 = 2 * (precision_3 * recall_3) / (precision_3 + recall_3)
+            #f1_score = (f1_score_0 * 40591.0/69920.0) + (f1_score_1 * 14624.0/69920.0) + (f1_score_2 * 10490.0/69920.0) + (f1_score_3 *4215.0/ 69920.0)
+            tf.summary.scalar('f1_score_0', f1_score_0)
+            tf.summary.scalar('f1_score_1', f1_score_1)
+            tf.summary.scalar('f1_score_2', f1_score_2)
+            tf.summary.scalar('f1_score_3', f1_score_3)
+
+        #with tf.name_scope('train'):
+        #    optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
@@ -405,8 +441,8 @@ def worker(patient_uid):
 
         # print('X: {}'.format(X.shape))
         predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
-        transfer_values = np.ndarray([X.shape[0], 512], dtype=np.float32)
-        transfer_values_dense_7 = np.ndarray([X.shape[0], 128], dtype=np.float32)
+        transfer_values = np.ndarray([X.shape[0], 1000], dtype=np.float32)
+        #transfer_values_dense_7 = np.ndarray([X.shape[0], 128], dtype=np.float32)
 
         num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
         for i in range(0, num_batches):
@@ -418,21 +454,20 @@ def worker(patient_uid):
                          keep_prob: 1.0}
 
             # print('X[{}]: {}'.format(i, X[batch_start:batch_end].shape))
-            pred, trans_val, trans_val_dense_7 = sess.run([y, dense6_out, dense7_out], feed_dict=feed_dict)
+            pred, trans_val = sess.run([y, dense8_out], feed_dict=feed_dict)
             predictions[batch_start: batch_end, :] = pred
             transfer_values[batch_start: batch_end, :] = trans_val
-            transfer_values_dense_7[batch_start: batch_end, :] = trans_val_dense_7
+            #transfer_values_dense_7[batch_start: batch_end, :] = trans_val_dense_7
             #print('predictions: ' + str(predictions.shape))
             #print('transfer_values: ' + str(transfer_values.shape))
 
         np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
         np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
-        np.save(OUTPUT_PATH + patient_uid + '_transfer_values_dense_7.npy', transfer_values_dense_7)
+        #np.save(OUTPUT_PATH + patient_uid + '_transfer_values_dense_7.npy', transfer_values_dense_7)
         del x_in, X
 
     sess.close()
     print("end:", patient_uid )
-
 
 def predict_features():
     # Will do this loop twice two catch any files that errored out due to out of memory error
@@ -482,10 +517,10 @@ if __name__ == '__main__':
     start_time = time.time()
 
     DATA_PATH = '/kaggle_3/stage1_processed_unseg/'
-    OUTPUT_PATH = '/kaggle_3/stage1_features_v4/'
+    OUTPUT_PATH = '/kaggle_3/stage1_features_v5/'
     PATIENT_SCANS = 'scan_lungs_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
-    MODEL_PATH = '/kaggle_2/luna/luna16/models/09dc3a07-fbeb-4c86-8f79-39cddccdd84c/'
+    MODEL_PATH = '/kaggle_2/luna/luna16/models/6873e6ae-3c8f-442a-a067-e662fefe4fb3/'
     OVERLAP_PERCENTAGE = 0.7
 
     #globals initializing
@@ -504,7 +539,6 @@ if __name__ == '__main__':
                                 """Percent of max_iterations after which analysis will be done""")
     tf.app.flags.DEFINE_float('reg_constant', 0.1, 'Regularization constant.')
     tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout')
-
 
     ## Tensorflow specific
     tf.app.flags.DEFINE_integer('num_gpus', 2,
