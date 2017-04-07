@@ -158,10 +158,10 @@ def get_patient_features(patient_ids):
         # print(features_3[:, 512:518])
 
         # Sorting in descending order because want to get the most confident predictions in the smallest bin
-        features_0 = features_0[features_0[:,-1].argsort()[::-1]]
-        features_1 = features_1[features_1[:,-1].argsort()[::-1]]
-        features_2 = features_2[features_2[:,-1].argsort()[::-1]]
-        features_3 = features_3[features_3[:,-1].argsort()[::-1]]
+        # features_0 = features_0[features_0[:,-1].argsort()[::-1]]
+        # features_1 = features_1[features_1[:,-1].argsort()[::-1]]
+        # features_2 = features_2[features_2[:,-1].argsort()[::-1]]
+        # features_3 = features_3[features_3[:,-1].argsort()[::-1]]
 
 
         #class_0
@@ -173,7 +173,7 @@ def get_patient_features(patient_ids):
             if start_index_0 >= len(features_0):
                 features_bin_0[i,:] = 0.0
             else:
-                features_bin_0[i,:] = np.max(features_0[start_index_0:start_index_0 + bin_size_0,:], axis=0)
+                features_bin_0[i,:] = np.mean(features_0[start_index_0:start_index_0 + bin_size_0,:], axis=0)
             start_index_0 = start_index_0 + bin_size_0
 
 
@@ -186,7 +186,7 @@ def get_patient_features(patient_ids):
             if start_index_1 >= len(features_1):
                 features_bin_1[i,:] = 0.0
             else:
-                features_bin_1[i,:] = np.max(features_1[start_index_1:start_index_1 + bin_size_1,:], axis=0)
+                features_bin_1[i,:] = np.mean(features_1[start_index_1:start_index_1 + bin_size_1,:], axis=0)
             start_index_1 = start_index_1 + bin_size_1
 
 
@@ -199,7 +199,7 @@ def get_patient_features(patient_ids):
             if start_index_2 >= len(features_2):
                 features_bin_2[i,:] = 0.0
             else:
-                features_bin_2[i,:] = np.max(features_2[start_index_2:start_index_2 + bin_size_2,:], axis=0)
+                features_bin_2[i,:] = np.mean(features_2[start_index_2:start_index_2 + bin_size_2,:], axis=0)
             start_index_2 = start_index_2 + bin_size_2
 
 
@@ -217,7 +217,7 @@ def get_patient_features(patient_ids):
             if start_index_3 >= len(features_3):
                 features_bin_3[i,:] = 0.0
             else:
-                features_bin_3[i,:] = np.max(features_3[start_index_3:start_index_3 + bin_size_3,:], axis=0)
+                features_bin_3[i,:] = np.mean(features_3[start_index_3:start_index_3 + bin_size_3,:], axis=0)
             start_index_3 = start_index_3 + bin_size_3
 
         # print("class 3", features_3.shape[0]/NUM_BINS_3 , math.ceil(features_3.shape[0]/NUM_BINS_3) )
