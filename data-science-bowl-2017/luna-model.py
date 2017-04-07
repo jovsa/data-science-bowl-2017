@@ -110,19 +110,19 @@ def dense_3d(inputs,
             layer = tf.matmul(inputs, weights) + biases
         return layer
 
-def get_batch(x, y, batch_size, PATH):
+def get_batch(x, y):
     num_images = len(x)
     idx = np.random.choice(num_images,
-                           size=batch_size,
+                           size=FLAGS.batch_size,
                            replace=False)
     x_batch_ids = x[idx]
     y_batch = y[idx]
 
-    x_batch = np.ndarray([batch_size, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
+    x_batch = np.ndarray([FLAGS.batch_size, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
 
     count = 0
     for chunk_id in x_batch_ids:
-        chunk = np.load(PATH + chunk_id + '_X.npy').astype(np.float32, copy=False)
+        chunk = np.load(DATA_PATH + chunk_id + '_X.npy').astype(np.float32, copy=False)
         x_batch[count, :, :, :, :] = img_to_rgb(chunk)
         count = count + 1
 
@@ -162,15 +162,16 @@ def train_3d_nn():
     # Seed numpy random to generate identical random numbers every time (used in batching)
     np.random.seed(42)
 
-    def get_validation_batch(validation_x_ids, validation_y, batch_number, batch_size):
+    def get_validation_batch(validation_x_ids, validation_y, batch_number):
         num_images = len(validation_x_ids)
 
-        validation_x = np.ndarray([batch_size, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
-
         count = 0
-        start_index = batch_number * batch_size
-        end_index = start_index + batch_size
+        start_index = batch_number * FLAGS.batch_size
+        end_index = start_index + FLAGS.batch_size
         end_index = num_images if end_index > num_images else end_index
+        real_batch_size = end_index - start_index
+
+        validation_x = np.ndarray([real_batch_size, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
 
         for chunk_id in validation_x_ids[start_index : end_index]:
             chunk = np.load(DATA_PATH + chunk_id + '_X.npy').astype(np.float32, copy=False)
@@ -181,10 +182,10 @@ def train_3d_nn():
 
     def feed_dict(is_train, batch_number = 0):
         if is_train:
-            x_batch, y_batch = get_batch(train_x, train_y, FLAGS.batch_size, DATA_PATH)
+            x_batch, y_batch = get_batch(train_x, train_y)
             k = FLAGS.dropout
         else:
-            x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number, FLAGS.batch_size)
+            x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number)
             k = 1.0
         crss_entrpy_weights = np.ones((y_batch.shape[0]))
         for m in range(y_batch.shape[0]):
