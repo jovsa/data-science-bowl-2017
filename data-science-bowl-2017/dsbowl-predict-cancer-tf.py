@@ -30,102 +30,38 @@ def get_patient_labels(patient_ids):
     labels = pd.read_csv(LABELS)
     input_labels = {}
     for patient_id in patient_ids:
-        try:
-            label = int(labels.loc[labels['id'] == patient_id, 'cancer'])
-            input_labels[patient_id] = label
-        except TypeError:
-            print('ERROR: Couldnt find label for patient {}'.format(patient_id))
-            continue
+        input_labels[patient_id] = int(labels.loc[labels['id'] == patient_id, 'cancer'])
     return input_labels
 
 def get_patient_features(patient_ids):
-    input_features = {}
+    input_features = []
+    input_labels = []
+    labels = pd.read_csv(LABELS)
+
     num_patients = len(patient_ids)
-    count = 0
+    patient_count = 0
+    chunk_count = 0
     for patient_id in patient_ids:
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
-
-        max_class_shape = (predictions.shape[0], 1)
-        max_class = np.zeros(shape=max_class_shape, dtype=np.int16)
-        for i in range(len(predictions)):
-            current_max_class  = np.argmax(predictions[i])
-            max_class[i] = current_max_class
-
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
+        label = int(labels.loc[labels['id'] == patient_id, 'cancer'])
 
-        features_shape = (transfer_values.shape[0], transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
-        features = np.zeros(shape=features_shape, dtype=np.float32)
-        features[:, 0:transfer_values.shape[1]] = transfer_values
-        features[:, transfer_values.shape[1]:transfer_values.shape[1] + FLAGS.num_classes_luna] = predictions
-        features[:, transfer_values.shape[1] + FLAGS.num_classes_luna: transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier] = max_class
+        for i in range(predictions.shape[0]):
+            predicted_class  = np.argmax(predictions[i])
+            #print('predicted_class', predicted_class)
+            if predicted_class != 0:
+                features = np.ndarray(shape=(transfer_values.shape[1] + predictions.shape[1]), dtype=np.float32)
+                features[0 : transfer_values.shape[1]] = transfer_values[i]
+                features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = predictions[i]
 
-        num_0 = 0
-        num_1 = 0
-        num_2 = 0
-        num_3 = 0
+                input_features.append(features)
+                input_labels.append(label)
+            chunk_count += 1
 
-        for i in range(0, transfer_values.shape[0]):
-            if (features[i, 516] == 0.0):
-                num_0 = num_0 + 1
+        patient_count = patient_count + 1
+        print('Loaded data for patient {}/{}/{}'.format(patient_count, num_patients, chunk_count))
 
-            if (features[i, 516] == 1.0):
-                num_1 = num_1 + 1
-
-            if (features[i, 516] == 2.0):
-                num_2 = num_2 + 1
-
-            if (features[i, 516] == 3.0):
-                num_3 = num_3 + 1
-
-        features_shape_0 = (num_0, transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
-        features_0 = np.zeros(shape=features_shape_0, dtype=np.float32)
-
-        features_shape_1 = (num_1, transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
-        features_1 = np.zeros(shape=features_shape_1, dtype=np.float32)
-
-        features_shape_2 = (num_2, transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
-        features_2 = np.zeros(shape=features_shape_2, dtype=np.float32)
-
-        features_shape_3 = (num_3, transfer_values.shape[1] + FLAGS.num_classes_luna + FLAGS.max_class_identifier)
-        features_3 = np.zeros(shape=features_shape_3, dtype=np.float32)
-
-        index0 = 0
-        index1 = 0
-        index2 = 0
-        index3 = 0
-
-        for i in range(0, transfer_values.shape[0]):
-            if (features[i, 516] == 0.0):
-                features_0[index0] = features[i,:]
-                index0 = index0 + 1
-
-            if (features[i, 516] == 1.0):
-                features_1[index1] = features[i,:]
-                index1 = index1 + 1
-
-            if (features[i, 516] == 2.0):
-                features_2[index2] = features[i,:]
-                index2 = index2 + 1
-
-            if (features[i, 516] == 3.0):
-                features_3[index3] = features[i,:]
-                index3 = index3 + 1
-
-        features_0 = np.mean(features_0, axis = 0)
-        features_1 = np.mean(features_1, axis = 0)
-        features_2 = np.mean(features_2, axis = 0)
-        features_3 = np.mean(features_3, axis = 0)
-
-        features_flattened = np.concatenate((features_0, features_1), axis = 0)
-        features_flattened = np.concatenate((features_flattened, features_2) , axis = 0)
-        features_flattened = np.concatenate((features_flattened, features_3) , axis = 0)
-
-        input_features[patient_id] = features_flattened
-        count = count + 1
-
-        print('Loaded data for patient {}/{}'.format(count, num_patients))
-
-    return input_features
+    return input_features, input_labels
 
 def conv1d(inputs,             # The previous layer.
            filter_size,        # Width and height of each filter.
@@ -195,7 +131,8 @@ def get_training_batch(train_x, train_y, batch_size):
     idx = np.random.choice(num_images,
                            size=batch_size,
                            replace=False)
-    x_batch = img_to_rgb(train_x[idx])
+    #x_batch = img_to_rgb(train_x[idx])
+    x_batch = train_x[idx]
     y_batch = train_y[idx]
 
     # x_batch = np.ndarray([batch_size, FLAGS.transfer_values_shape + FLAGS.num_classes_luna + 1, 1], dtype=np.float32)
@@ -223,7 +160,8 @@ def get_validation_batch(validation_x, validation_y, batch_number, batch_size):
     #     x_batch[i] = img_to_rgb(X_dict[key])
     #     y_batch[i] = validation_y[start_index + i]
 
-    return img_to_rgb(validation_x[start_index : end_index]), validation_y[start_index : end_index]
+    #return img_to_rgb(validation_x[start_index : end_index]), validation_y[start_index : end_index]
+    return validation_x[start_index : end_index], validation_y[start_index : end_index]
 
 def save_model(sess, model_id, saver):
     checkpoint_folder = os.path.join(MODELS, model_id)
@@ -246,17 +184,19 @@ def train_nn():
     test_patient_ids = set(sample_submission['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
 
-    train_inputs = get_patient_features(train_patient_ids)
-    train_labels = get_patient_labels(train_patient_ids)
+    #train_patient_ids = list(train_patient_ids)[0:20]
 
-    num_patients = len(train_patient_ids)
-    X = np.ndarray(shape=(num_patients, 2068), dtype=np.float32)
+    train_inputs, train_labels = get_patient_features(train_patient_ids)
+    #train_labels = get_patient_labels(train_patient_ids)
+
+    num_patients = len(train_inputs)
+    X = np.ndarray(shape=(num_patients, FLAGS.transfer_values_shape + FLAGS.num_classes_luna), dtype=np.float32)
     Y = np.ndarray(shape=(num_patients), dtype=np.float32)
 
     count = 0
-    for key in train_inputs.keys():
-        X[count] = train_inputs[key]
-        Y[count] = train_labels[key]
+    for i in range(len(train_inputs)):
+        X[count] = train_inputs[i]
+        Y[count] = train_labels[i]
         count = count + 1
 
     print('X.shape: {}'.format(X.shape))
@@ -288,13 +228,12 @@ def train_nn():
         else:
             x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number, FLAGS.batch_size)
             k = 1.0
-
         return {x: x_batch, y_labels: y_batch, keep_prob: k}
 
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
-        x = tf.placeholder(tf.float32, shape=[None, 2068, 1], name = 'x')
+        x = tf.placeholder(tf.float32, shape=[None, FLAGS.transfer_values_shape + FLAGS.num_classes_luna], name = 'x')
         y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
         y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
         keep_prob = tf.placeholder(tf.float32)
@@ -302,27 +241,35 @@ def train_nn():
         class_weights = tf.multiply(class_weights_base , [1.0/0.25, 1.0/0.75])
 
         # layer1
-        conv1_out, conv1_weights = conv1d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = 3, layer_name ='conv1')
+        #conv1_out, conv1_weights = conv1d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = 3, layer_name ='conv1')
 
-        relu1_out = relu_1d(inputs = conv1_out, layer_name='relu1')
+        #relu1_out = relu_1d(inputs = conv1_out, layer_name='relu1')
 
         # layer2
-        conv2_out, conv2_weights = conv1d(inputs = relu1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = 3, layer_name ='conv2')
+        #conv2_out, conv2_weights = conv1d(inputs = relu1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = 3, layer_name ='conv2')
 
-        relu2_out = relu_1d(inputs = conv2_out, layer_name='relu2')
+        #relu2_out = relu_1d(inputs = conv2_out, layer_name='relu2')
 
         # layer3
-        conv3_out, conv3_weights = conv1d(inputs = relu2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = 3, layer_name ='conv3')
+        #conv3_out, conv3_weights = conv1d(inputs = relu2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = 3, layer_name ='conv3')
 
-        relu3_out = relu_1d(inputs = conv3_out, layer_name='relu3')
+        #relu3_out = relu_1d(inputs = conv3_out, layer_name='relu3')
 
-        dropout3_out = dropout_1d(inputs = relu3_out, keep_prob = keep_prob, layer_name='drop3')
+        #dropout3_out = dropout_1d(inputs = relu3_out, keep_prob = keep_prob, layer_name='drop3')
 
-        flatten4_out, flatten4_features = flatten_1d(dropout3_out, layer_name='flatten4')
+        #flatten4_out, flatten4_features = flatten_1d(dropout3_out, layer_name='flatten4')
+
+        dense1_out = dense_1d(inputs=x, num_inputs=int(x.shape[1]), num_outputs=4096, layer_name ='fc1')
+        relu1_out = relu_1d(inputs = dense1_out, layer_name='relu1')
+
+        dense2_out = dense_1d(inputs=relu1_out, num_inputs=4096, num_outputs=2048, layer_name ='fc2')
+        relu2_out = relu_1d(inputs = dense2_out, layer_name='relu2')
+
+        dense3_out = dense_1d(inputs=relu2_out, num_inputs=2048, num_outputs=1024, layer_name ='fc3')
+        relu3_out = relu_1d(inputs = dense3_out, layer_name='relu3')
 
         # layer6
-        dense5_out = dense_1d(inputs=flatten4_out, num_inputs=int(flatten4_out.shape[1]), num_outputs=512, layer_name ='fc5')
-
+        dense5_out = dense_1d(inputs=relu3_out, num_inputs=1024, num_outputs=512, layer_name ='fc5')
         relu5_out = relu_1d(inputs = dense5_out, layer_name='relu5')
 
         dropout5_out = dropout_1d(inputs = relu5_out, keep_prob = keep_prob, layer_name='drop5')
@@ -366,6 +313,74 @@ def train_nn():
         with tf.name_scope('train'):
             optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
 
+        # Class Based Metrics calculations
+        y_pred_class = tf.argmax(y, 1)
+        y_labels_class = tf.argmax(y_labels, 1)
+
+        confusion_matrix = tf.confusion_matrix(y_labels_class, y_pred_class, num_classes=FLAGS.num_classes)
+
+        sum_row_0 = tf.reduce_sum(confusion_matrix[0, :])
+        sum_row_1 = tf.reduce_sum(confusion_matrix[1, :])
+        sum_col_0 = tf.reduce_sum(confusion_matrix[:, 0])
+        sum_col_1 = tf.reduce_sum(confusion_matrix[:, 1])
+
+        sum_all = tf.reduce_sum(confusion_matrix[:, :])
+
+        with tf.name_scope('precision'):
+            precision_0 = confusion_matrix[0,0] / sum_col_0
+            precision_1 = confusion_matrix[1,1] / sum_col_1
+
+            tf.summary.scalar('precision_0', precision_0)
+            tf.summary.scalar('precision_1', precision_1)
+
+        with tf.name_scope('recall'):
+            recall_0 = confusion_matrix[0,0] / sum_row_0
+            recall_1 = confusion_matrix[1,1] / sum_row_1
+
+            tf.summary.scalar('recall_0', recall_0)
+            tf.summary.scalar('recall_1', recall_1)
+
+        with tf.name_scope('specificity'):
+            tn_0 = sum_all - (sum_row_0 + sum_col_0 - confusion_matrix[0,0])
+            fp_0 = sum_col_0 - confusion_matrix[0,0]
+            specificity_0 = tn_0 / (tn_0 + fp_0)
+
+            tn_1 = sum_all - (sum_row_1 + sum_col_1 - confusion_matrix[1,1])
+            fp_1 = sum_col_1 - confusion_matrix[1,1]
+            specificity_1 = tn_1 / (tn_1 + fp_1)
+
+            tf.summary.scalar('specificity_0', specificity_0)
+            tf.summary.scalar('specificity_1', specificity_1)
+
+        with tf.name_scope('true_positives'):
+            tp_0 = confusion_matrix[0,0]
+            tp_1 = confusion_matrix[1,1]
+
+            tf.summary.scalar('true_positives_0', tp_0)
+            tf.summary.scalar('true_positives_1', tp_1)
+
+        with tf.name_scope('true_negatives'):
+            tf.summary.scalar('true_negatives_0', tn_0)
+            tf.summary.scalar('true_negatives_1', tn_1)
+
+        with tf.name_scope('false_positives'):
+            tf.summary.scalar('false_positives_0', fp_0)
+            tf.summary.scalar('false_positives_1', fp_1)
+
+        with tf.name_scope('false_negatives'):
+            fn_0 = sum_row_0 - tp_0
+            fn_1 = sum_row_1 - tp_1
+
+            tf.summary.scalar('false_negatives_0', fn_0)
+            tf.summary.scalar('false_negatives_1', fn_1)
+
+        with tf.name_scope('accuracy_by_class'):
+            accuracy_0 = (tp_0 + tn_0)/(tp_0 + fp_0 + fn_0 + tn_0)
+            accuracy_1 = (tp_1 + tn_1)/(tp_1 + fp_1 + fn_1 + tn_1)
+
+            tf.summary.scalar('accuracy_0', accuracy_0)
+            tf.summary.scalar('accuracy_1', accuracy_1)
+
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
 
@@ -389,10 +404,6 @@ def train_nn():
 
     print('Run_name: {}'.format(train_run_name))
 
-    sum_training_batch = 0.0
-    sum_validation_batch = 0.0
-    sum_training_pred = 0.0
-    sum_validation_pred = 0.0
     k_count = 0
     with tf.Session(graph=graph, config=config) as sess:
         train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES + train_run_name, sess.graph)
@@ -405,38 +416,13 @@ def train_nn():
                 # Validation
                 num_batches = int(math.ceil(float(len(validation_x)) / FLAGS.batch_size))
                 for k in range(num_batches):
-                    start_time = time.time()
-                    feed_dict_v = feed_dict(False, k)
-                    end_time = time.time()
-                    sum_validation_batch += (end_time - start_time)
-
-                    start_time = time.time()
-                    _, step_summary = sess.run([y, merged], feed_dict=feed_dict_v)
-                    end_time = time.time()
-                    sum_validation_pred += (end_time - start_time)
+                    _, step_summary = sess.run([y, merged], feed_dict=feed_dict(False, k))
                     test_writer.add_summary(step_summary, k_count)
                     k_count = k_count + 1
-                tqdm.write('get_batch_validation: {}'.format(sum_validation_batch/k_count))
-                tqdm.write('predict_validation: {}'.format(sum_validation_pred/k_count))
-
-                if (i > 0):
-                    tqdm.write('get_batch_training: {}'.format(sum_training_batch/i))
-                    tqdm.write('predict_validation: {}'.format(sum_training_pred/i))
-
             else:
                 # Train
-                start_time = time.time()
-                feed_dict_t = feed_dict(True)
-                end_time = time.time()
-                sum_training_batch += (end_time - start_time)
-
-                start_time = time.time()
-                _, step_summary = sess.run([optimizer, merged], feed_dict=feed_dict_t)
-                end_time = time.time()
-                sum_training_pred += (end_time - start_time)
-
+                _, step_summary = sess.run([optimizer, merged], feed_dict=feed_dict(True))
                 train_writer.add_summary(step_summary, i)
-
 
         train_writer.close()
         test_writer.close()
@@ -516,7 +502,7 @@ def train_nn():
 if __name__ == '__main__':
     start_time = time.time()
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_features_v3/'
+    DATA_PATH = '/kaggle_3/stage1_features_v5/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
@@ -526,21 +512,21 @@ if __name__ == '__main__':
     FLAGS = tf.app.flags.FLAGS
 
     ## Prediction problem specific
-    tf.app.flags.DEFINE_integer('iteration_analysis', 1000,
+    tf.app.flags.DEFINE_integer('iteration_analysis', 25000,
                                 """Number of steps after which analysis code is executed""")
     tf.app.flags.DEFINE_integer('num_classes', 2,
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('num_classes_luna', 4,
                                 """Number of classes predicted by LUNA model.""")
-    tf.app.flags.DEFINE_integer('transfer_values_shape', 512,
+    tf.app.flags.DEFINE_integer('transfer_values_shape', 1000,
                                 'Size of transfer values')
     tf.app.flags.DEFINE_integer('batch_size', 32,
                                 """Number of items in a batch.""")
-    tf.app.flags.DEFINE_integer('max_iterations', 60000,
+    tf.app.flags.DEFINE_integer('max_iterations', 200000,
                                 """Number of batches to run.""")
     tf.app.flags.DEFINE_float('reg_constant', 0.1, 'Regularization constant.')
     tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout')
-    tf.app.flags.DEFINE_integer('max_class_identifier', 1, 'max_class_identifier')
+
     ## Tensorflow specific
     tf.app.flags.DEFINE_boolean('log_device_placement', False,
                                 """Whether to log device placement.""")
