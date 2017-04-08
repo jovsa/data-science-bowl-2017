@@ -20,8 +20,8 @@ from matplotlib import pyplot as plt
 import tensorflow as tf
 from tqdm import tqdm
 
-DATA_PATH_PREPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_augmented_v2_nz/'
-DATA_PATH_POSTPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_augmented_v2_nz_single/'
+DATA_PATH_PREPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_augmented_v4/'
+DATA_PATH_POSTPROCESS = '/kaggle_2/luna/luna16/data/pre_processed_chunks_augmented_v4_single/'
 
 def shuffle_in_unison(arrays, random_seed=None):
     if random_seed:
