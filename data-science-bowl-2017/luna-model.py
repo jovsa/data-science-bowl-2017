@@ -38,7 +38,7 @@ def get_ids(PATH):
 
 def get_data(chunk_ids, PATH):
     X = np.asarray(chunk_ids)
-    Y = np.ndarray([len(chunk_ids), FLAGS.num_classes], dtype=np.float32)
+    Y = np.ndarray([len(chunk_ids), FLAGS.num_classes_pre_process], dtype=np.float32)
 
     count = 0
     for chunk_id in chunk_ids:
@@ -143,6 +143,11 @@ def train_3d_nn():
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
     print('Splitting into train, validation sets')
     Y = np.argmax(Y, axis = 1)
+
+    # Crunch 4 classes to 2
+    Y[Y == 2] = 1
+    Y[Y == 3] = 1
+
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y, test_size=0.20)
 
     klass_weights = np.asarray([69838.0/40513.0, 69838.0/29325.0])
@@ -514,7 +519,7 @@ def train_3d_nn():
 
 if __name__ == '__main__':
     start_time = time.time()
-    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_processed_chunks_augmented_v4_single/'
+    DATA_PATH = '/kaggle_2/luna/luna16/data/pre_processed_chunks_augmented_v2_nz_single/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/luna/luna16/data/tensorboard_summaries/'
     MODELS = '/kaggle_2/luna/luna16/models/'
 
@@ -524,10 +529,12 @@ if __name__ == '__main__':
     ## Prediction problem specific
     tf.app.flags.DEFINE_integer('iteration_analysis', 1000,
                                 """Number of steps after which analysis code is executed""")
-    tf.app.flags.DEFINE_integer('chunk_size', 64,
+    tf.app.flags.DEFINE_integer('chunk_size', 48,
                                 """Size of chunks used.""")
     tf.app.flags.DEFINE_integer('num_classes', 2,
                                 """Number of classes to predict.""")
+    tf.app.flags.DEFINE_integer('num_classes_pre_process', 4,
+                                """Number of classes before pre processing.""")
     tf.app.flags.DEFINE_integer('batch_size', 128,
                                 """Number of items in a batch.""")
     tf.app.flags.DEFINE_integer('max_iterations', 60000,
