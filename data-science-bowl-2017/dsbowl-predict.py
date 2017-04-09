@@ -541,7 +541,7 @@ if __name__ == '__main__':
     PATIENT_SCANS = 'scan_lungs_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
     MODEL_PATH = '/kaggle_2/luna/luna16/models/4ba9ca74-7994-42bf-9d9f-3a8dd682e623/'
-    OVERLAP_PERCENTAGE = 0.68
+    OVERLAP_PERCENTAGE = 0.7
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
