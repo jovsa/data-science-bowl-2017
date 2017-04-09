@@ -145,13 +145,13 @@ def get_patient_data_chunks(patient_id):
     for m in range(0, len(chunk_list)):
         X[m, :, :, :] = chunk_list[m]
 
+    del scans, chunk_list
     # Normalizing and Zero Centering and Adding extra channel
     X = X.astype(np.float32, copy=False)
     X = normalize(X)
     X = zero_center(X)
     X = img_to_rgb(X)
 
-    del scans
     return X
 
 def worker(patient_uid):
@@ -541,7 +541,7 @@ if __name__ == '__main__':
     PATIENT_SCANS = 'scan_lungs_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
     MODEL_PATH = '/kaggle_2/luna/luna16/models/4ba9ca74-7994-42bf-9d9f-3a8dd682e623/'
-    OVERLAP_PERCENTAGE = 0.7
+    OVERLAP_PERCENTAGE = 0.68
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
