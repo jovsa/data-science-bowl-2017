@@ -103,7 +103,14 @@ def zero_center(image):
     return image
 
 def get_patient_data_chunks(patient_id):
-    scans = np.load(DATA_PATH + PATIENT_SCANS + patient_id + '.npy')
+    if os.path.isfile(DATA_PATH + PATIENT_SCANS + patient_id + '.npy'):
+        scans = np.load(DATA_PATH + PATIENT_SCANS + patient_id + '.npy')
+    elif os.path.isfile(DATA_PATH2 + PATIENT_SCANS + patient_id + '.npy'):
+        scans = np.load(DATA_PATH2 + PATIENT_SCANS + patient_id + '.npy')
+    else:
+        with open("error.out", "a") as myfile:
+            myfile.write('Couldnt find scan for patient {}'.format(patient_id))
+
     chunk_counter = 1
     step_size = int(FLAGS.chunk_size * (1 - OVERLAP_PERCENTAGE))
     num_chunks_0 = int(scans.shape[0] / step_size) + 1
@@ -138,10 +145,12 @@ def get_patient_data_chunks(patient_id):
     for m in range(0, len(chunk_list)):
         X[m, :, :, :] = chunk_list[m]
 
-    # Normalizing and Zero Centering
+    # Normalizing and Zero Centering and Adding extra channel
     X = X.astype(np.float32, copy=False)
     X = normalize(X)
     X = zero_center(X)
+    X = img_to_rgb(X)
+
     del scans
     return X
 
@@ -157,7 +166,7 @@ def worker(patient_uid):
         keep_prob = tf.placeholder(tf.float32)
 
         class_weights_base = tf.ones_like(y_labels)
-        class_weights = tf.multiply(class_weights_base , [69920.0/40591.0, 69920.0/14624.0, 69920.0/10490.0, 69920.0/4215.0])
+        class_weights = tf.multiply(class_weights_base , [69838.0/40513.0, 69838.0/29325.0])
 
         # layer1
         conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = [1, 3, 3, 3, 1], layer_name ='conv1_1')
@@ -251,19 +260,19 @@ def worker(patient_uid):
             weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15) + tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
             tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
-        with tf.name_scope('weighted_softmax_cross_entropy'):
-            weighted_softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out, weights=cross_entropy_weights)
-            tf.summary.scalar('weighted_softmax_cross_entropy', weighted_softmax_cross_entropy)
+        # with tf.name_scope('weighted_softmax_cross_entropy'):
+        #     weighted_softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out, weights=cross_entropy_weights)
+        #     tf.summary.scalar('weighted_softmax_cross_entropy', weighted_softmax_cross_entropy)
 
         with tf.name_scope('sparse_softmax_cross_entropy'):
             y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
             sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out)
             tf.summary.scalar('sparse_softmax_cross_entropy', sparse_softmax_cross_entropy)
 
-        with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
-            y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
-            weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out, weights=cross_entropy_weights)
-            tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
+        # with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
+        #     y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
+        #     weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out, weights=cross_entropy_weights)
+        #     tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
 
         # Class Based Metrics calculations
         y_pred_class = tf.argmax(y, 1)
@@ -273,36 +282,36 @@ def worker(patient_uid):
 
         sum_row_0 = tf.reduce_sum(confusion_matrix[0, :])
         sum_row_1 = tf.reduce_sum(confusion_matrix[1, :])
-        sum_row_2 = tf.reduce_sum(confusion_matrix[2, :])
-        sum_row_3 = tf.reduce_sum(confusion_matrix[3, :])
+        # sum_row_2 = tf.reduce_sum(confusion_matrix[2, :])
+        # sum_row_3 = tf.reduce_sum(confusion_matrix[3, :])
         sum_col_0 = tf.reduce_sum(confusion_matrix[:, 0])
         sum_col_1 = tf.reduce_sum(confusion_matrix[:, 1])
-        sum_col_2 = tf.reduce_sum(confusion_matrix[:, 2])
-        sum_col_3 = tf.reduce_sum(confusion_matrix[:, 3])
+        # sum_col_2 = tf.reduce_sum(confusion_matrix[:, 2])
+        # sum_col_3 = tf.reduce_sum(confusion_matrix[:, 3])
 
         sum_all = tf.reduce_sum(confusion_matrix[:, :])
 
         with tf.name_scope('precision'):
             precision_0 = confusion_matrix[0,0] / sum_col_0
             precision_1 = confusion_matrix[1,1] / sum_col_1
-            precision_2 = confusion_matrix[2,2] / sum_col_2
-            precision_3 = confusion_matrix[3,3] / sum_col_3
+            # precision_2 = confusion_matrix[2,2] / sum_col_2
+            # precision_3 = confusion_matrix[3,3] / sum_col_3
 
             tf.summary.scalar('precision_0', precision_0)
             tf.summary.scalar('precision_1', precision_1)
-            tf.summary.scalar('precision_2', precision_2)
-            tf.summary.scalar('precision_3', precision_3)
+            # tf.summary.scalar('precision_2', precision_2)
+            # tf.summary.scalar('precision_3', precision_3)
 
         with tf.name_scope('recall'):
             recall_0 = confusion_matrix[0,0] / sum_row_0
             recall_1 = confusion_matrix[1,1] / sum_row_1
-            recall_2 = confusion_matrix[2,2] / sum_row_2
-            recall_3 = confusion_matrix[3,3] / sum_row_3
+            # recall_2 = confusion_matrix[2,2] / sum_row_2
+            # recall_3 = confusion_matrix[3,3] / sum_row_3
 
             tf.summary.scalar('recall_0', recall_0)
             tf.summary.scalar('recall_1', recall_1)
-            tf.summary.scalar('recall_2', recall_2)
-            tf.summary.scalar('recall_3', recall_3)
+            # tf.summary.scalar('recall_2', recall_2)
+            # tf.summary.scalar('recall_3', recall_3)
 
         with tf.name_scope('specificity'):
             tn_0 = sum_all - (sum_row_0 + sum_col_0 - confusion_matrix[0,0])
@@ -313,108 +322,108 @@ def worker(patient_uid):
             fp_1 = sum_col_1 - confusion_matrix[1,1]
             specificity_1 = tn_1 / (tn_1 + fp_1)
 
-            tn_2 = sum_all - (sum_row_2 + sum_col_2 - confusion_matrix[2,2])
-            fp_2 = sum_col_2 - confusion_matrix[2,2]
-            specificity_2 = tn_2 / (tn_2 + fp_2)
-
-            tn_3 = sum_all - (sum_row_3 + sum_col_3 - confusion_matrix[3,3])
-            fp_3 = sum_col_3 - confusion_matrix[3,3]
-            specificity_3 = tn_3 / (tn_3 + fp_3)
+            # tn_2 = sum_all - (sum_row_2 + sum_col_2 - confusion_matrix[2,2])
+            # fp_2 = sum_col_2 - confusion_matrix[2,2]
+            # specificity_2 = tn_2 / (tn_2 + fp_2)
+            #
+            # tn_3 = sum_all - (sum_row_3 + sum_col_3 - confusion_matrix[3,3])
+            # fp_3 = sum_col_3 - confusion_matrix[3,3]
+            # specificity_3 = tn_3 / (tn_3 + fp_3)
 
             tf.summary.scalar('specificity_0', specificity_0)
             tf.summary.scalar('specificity_1', specificity_1)
-            tf.summary.scalar('specificity_2', specificity_2)
-            tf.summary.scalar('specificity_3', specificity_3)
+            # tf.summary.scalar('specificity_2', specificity_2)
+            # tf.summary.scalar('specificity_3', specificity_3)
 
         with tf.name_scope('true_positives'):
             tp_0 = confusion_matrix[0,0]
             tp_1 = confusion_matrix[1,1]
-            tp_2 = confusion_matrix[2,2]
-            tp_3 = confusion_matrix[3,3]
+            # tp_2 = confusion_matrix[2,2]
+            # tp_3 = confusion_matrix[3,3]
 
             tf.summary.scalar('true_positives_0', tp_0)
             tf.summary.scalar('true_positives_1', tp_1)
-            tf.summary.scalar('true_positives_2', tp_2)
-            tf.summary.scalar('true_positives_3', tp_3)
+            # tf.summary.scalar('true_positives_2', tp_2)
+            # tf.summary.scalar('true_positives_3', tp_3)
 
         with tf.name_scope('true_negatives'):
             tf.summary.scalar('true_negatives_0', tn_0)
             tf.summary.scalar('true_negatives_1', tn_1)
-            tf.summary.scalar('true_negatives_2', tn_2)
-            tf.summary.scalar('true_negatives_3', tn_3)
+            # tf.summary.scalar('true_negatives_2', tn_2)
+            # tf.summary.scalar('true_negatives_3', tn_3)
 
         with tf.name_scope('false_positives'):
             tf.summary.scalar('false_positives_0', fp_0)
             tf.summary.scalar('false_positives_1', fp_1)
-            tf.summary.scalar('false_positives_2', fp_2)
-            tf.summary.scalar('false_positives_3', fp_3)
+            # tf.summary.scalar('false_positives_2', fp_2)
+            # tf.summary.scalar('false_positives_3', fp_3)
 
         with tf.name_scope('false_negatives'):
             fn_0 = sum_row_0 - tp_0
             fn_1 = sum_row_1 - tp_1
-            fn_2 = sum_row_2 - tp_2
-            fn_3 = sum_row_3 - tp_3
+            # fn_2 = sum_row_2 - tp_2
+            # fn_3 = sum_row_3 - tp_3
 
             tf.summary.scalar('false_negatives_0', fn_0)
             tf.summary.scalar('false_negatives_1', fn_1)
-            tf.summary.scalar('false_negatives_2', fn_2)
-            tf.summary.scalar('false_negatives_3', fn_3)
+            # tf.summary.scalar('false_negatives_2', fn_2)
+            # tf.summary.scalar('false_negatives_3', fn_3)
 
         with tf.name_scope('log_loss_by_class'):
             log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], epsilon=10e-15)
             log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], epsilon=10e-15)
-            log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], epsilon=10e-15)
-            log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], epsilon=10e-15)
+            # log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], epsilon=10e-15)
+            # log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], epsilon=10e-15)
 
             #added extra '_' to avoid tenosorboard name collision with the main log_loss metric
             tf.summary.scalar('log_loss__0', log_loss_0)
             tf.summary.scalar('log_loss__1', log_loss_1)
-            tf.summary.scalar('log_loss__2', log_loss_2)
-            tf.summary.scalar('log_loss__3', log_loss_3)
+            # tf.summary.scalar('log_loss__2', log_loss_2)
+            # tf.summary.scalar('log_loss__3', log_loss_3)
 
         with tf.name_scope('softmax_cross_entropy_by_class'):
             softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], dense9_out[0])
             softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], dense9_out[1])
-            softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], dense9_out[2])
-            softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], dense9_out[3])
+            # softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], dense9_out[2])
+            # softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], dense9_out[3])
 
             tf.summary.scalar('softmax_cross_entropy_0', softmax_cross_entropy_0)
             tf.summary.scalar('softmax_cross_entropy_1', softmax_cross_entropy_1)
-            tf.summary.scalar('softmax_cross_entropy_2', softmax_cross_entropy_2)
-            tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
+            # tf.summary.scalar('softmax_cross_entropy_2', softmax_cross_entropy_2)
+            # tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
 
         with tf.name_scope('accuracy_by_class'):
             accuracy_0 = (tp_0 + tn_0)/(tp_0 + fp_0 + fn_0 + tn_0)
             accuracy_1 = (tp_1 + tn_1)/(tp_1 + fp_1 + fn_1 + tn_1)
-            accuracy_2 = (tp_2 + tn_2)/(tp_2 + fp_2 + fn_2 + tn_2)
-            accuracy_3 = (tp_3 + tn_3)/(tp_3 + fp_3 + fn_3 + tn_3)
+            # accuracy_2 = (tp_2 + tn_2)/(tp_2 + fp_2 + fn_2 + tn_2)
+            # accuracy_3 = (tp_3 + tn_3)/(tp_3 + fp_3 + fn_3 + tn_3)
 
             tf.summary.scalar('accuracy_0', accuracy_0)
             tf.summary.scalar('accuracy_1', accuracy_1)
-            tf.summary.scalar('accuracy_2', accuracy_2)
-            tf.summary.scalar('accuracy_3', accuracy_3)
+            # tf.summary.scalar('accuracy_2', accuracy_2)
+            # tf.summary.scalar('accuracy_3', accuracy_3)
 
         with tf.name_scope('weighted_log_loss_by_class'):
             weighted_log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], weights=class_weights[0], epsilon=10e-15)
             weighted_log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], weights=class_weights[1], epsilon=10e-15)
-            weighted_log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], weights=class_weights[2], epsilon=10e-15)
-            weighted_log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], weights=class_weights[3], epsilon=10e-15)
+            # weighted_log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], weights=class_weights[2], epsilon=10e-15)
+            # weighted_log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], weights=class_weights[3], epsilon=10e-15)
 
             tf.summary.scalar('weighted_log_loss_0', weighted_log_loss_0)
             tf.summary.scalar('weighted_log_loss_1', weighted_log_loss_1)
-            tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
-            tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
+            # tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
+            # tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
 
         with tf.name_scope('f1_score_by_class'):
             f1_score_0 = 2 * (precision_0 * recall_0) / (precision_0 + recall_0)
             f1_score_1 = 2 * (precision_1 * recall_1) / (precision_1 + recall_1)
-            f1_score_2 = 2 * (precision_2 * recall_2) / (precision_2 + recall_2)
-            f1_score_3 = 2 * (precision_3 * recall_3) / (precision_3 + recall_3)
-            #f1_score = (f1_score_0 * 40591.0/69920.0) + (f1_score_1 * 14624.0/69920.0) + (f1_score_2 * 10490.0/69920.0) + (f1_score_3 *4215.0/ 69920.0)
+            # f1_score_2 = 2 * (precision_2 * recall_2) / (precision_2 + recall_2)
+            # f1_score_3 = 2 * (precision_3 * recall_3) / (precision_3 + recall_3)
+            # #f1_score = (f1_score_0 * 40591.0/69920.0) + (f1_score_1 * 14624.0/69920.0) + (f1_score_2 * 10490.0/69920.0) + (f1_score_3 *4215.0/ 69920.0)
             tf.summary.scalar('f1_score_0', f1_score_0)
             tf.summary.scalar('f1_score_1', f1_score_1)
-            tf.summary.scalar('f1_score_2', f1_score_2)
-            tf.summary.scalar('f1_score_3', f1_score_3)
+            # tf.summary.scalar('f1_score_2', f1_score_2)
+            # tf.summary.scalar('f1_score_3', f1_score_3)
 
         #with tf.name_scope('train'):
         #    optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
@@ -434,10 +443,10 @@ def worker(patient_uid):
         saver.restore(sess, tf.train.latest_checkpoint(MODEL_PATH))
 
         # print('Processing patient {}'.format(patient_uid))
-        x_in = get_patient_data_chunks(patient_uid)
+        X = get_patient_data_chunks(patient_uid)
         # print('Got Data for patient {}'.format(patient_uid))
-        X = np.ndarray([x_in.shape[0], FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
-        X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
+        # X = np.ndarray([x_in.shape[0], FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
+        # X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
 
         # print('X: {}'.format(X.shape))
         predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
@@ -464,7 +473,7 @@ def worker(patient_uid):
         np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
         np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
         #np.save(OUTPUT_PATH + patient_uid + '_transfer_values_dense_7.npy', transfer_values_dense_7)
-        del x_in, X
+        del X
 
     sess.close()
     print("end:", patient_uid )
@@ -478,7 +487,17 @@ def predict_features():
             n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
             processed_patients.add(n.group(1))
 
-        for folder in tqdm(glob.glob(DATA_PATH + PATIENT_SCANS + '*')):
+        for folder in glob.glob(DATA_PATH + PATIENT_SCANS + '*'):
+            m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
+            patient_uid = m.group(1)
+
+            if patient_uid in processed_patients:
+                print('Skipping already processed patient {}'.format(patient_uid))
+                continue
+            else:
+                uids.append(patient_uid)
+
+        for folder in glob.glob(DATA_PATH2 + PATIENT_SCANS + '*'):
             m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
             patient_uid = m.group(1)
 
@@ -489,7 +508,7 @@ def predict_features():
                 uids.append(patient_uid)
 
         # Predict batch size = 3
-        for i in tqdm(range(0, len(uids), 3)):
+        for i in range(0, len(uids), 3):
             if i+2 < len(uids) and counter == 0:
                 p0 = mp.Process(target=worker, args=(uids[i],))
                 p1 = mp.Process(target=worker, args=(uids[i+1],))
@@ -517,17 +536,18 @@ if __name__ == '__main__':
     start_time = time.time()
 
     DATA_PATH = '/kaggle_3/stage1_processed_unseg/'
-    OUTPUT_PATH = '/kaggle_3/stage1_features_v5/'
+    DATA_PATH2 = '/kaggle_2/stage2_processed_unseg/'
+    OUTPUT_PATH = '/kaggle_3/all_stage_features/'
     PATIENT_SCANS = 'scan_lungs_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
-    MODEL_PATH = '/kaggle_2/luna/luna16/models/6873e6ae-3c8f-442a-a067-e662fefe4fb3/'
+    MODEL_PATH = '/kaggle_2/luna/luna16/models/4ba9ca74-7994-42bf-9d9f-3a8dd682e623/'
     OVERLAP_PERCENTAGE = 0.7
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
 
     ## Prediction problem specific
-    tf.app.flags.DEFINE_integer('num_classes', 4,
+    tf.app.flags.DEFINE_integer('num_classes', 2,
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('chunk_size', 48,
                                 """Chunk size""")
