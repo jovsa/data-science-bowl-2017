@@ -52,24 +52,11 @@ def get_patient_features(patient_ids):
             predicted_class = np.argmax(predictions[i])
             if (predicted_class == 1):
                 features = np.ndarray(shape=(transfer_values.shape[1] + predictions.shape[1]), dtype=np.float32)
-                features[0 : transfer_values.shape[1]] = transfer_values[i]
-                features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = predictions[i]
+                features[0 : transfer_values.shape[1]] = np.random.standard_normal(size= transfer_values.shape[1])
+                features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = np.random.standard_normal(size= predictions.shape[1])
                 input_features.append(features)
                 input_labels.append(label)
                 num_class_1 += 1
-            chunk_count += 1
-
-        # for class 0
-        num_class_0 = 0
-        for j in range(predictions.shape[0]):
-            predicted_class = np.argmax(predictions[j])
-            if(predicted_class == 0) and (num_class_0 < num_class_1):
-                features = np.ndarray(shape=(transfer_values.shape[1] + predictions.shape[1]), dtype=np.float32)
-                features[0 : transfer_values.shape[1]] = transfer_values[j]
-                features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = predictions[j]
-                input_features.append(features)
-                input_labels.append(label)
-                num_class_0 += 1
             chunk_count += 1
         patient_count += 1
         print('Loaded data for patient {}/{}/{}'.format(patient_count, num_patients, chunk_count))
