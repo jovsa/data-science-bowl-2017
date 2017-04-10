@@ -53,7 +53,6 @@ def get_patient_features(patient_ids):
                 features = np.ndarray(shape=(transfer_values.shape[1] + predictions.shape[1]), dtype=np.float32)
                 features[0 : transfer_values.shape[1]] = transfer_values[i]
                 features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = predictions[i]
-
                 input_features.append(features)
                 input_labels.append(label)
             chunk_count += 1
@@ -180,17 +179,16 @@ def train_nn():
         patient_id = re.match(r'([a-f0-9].*)_transfer_values.npy', filename).group(1)
         patient_ids.add(patient_id)
 
-    sample_submission = pd.read_csv(STAGE1_SUBMISSION)
+    sample_submission = pd.read_csv(STAGE2_SUBMISSION)
     test_patient_ids = set(sample_submission['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
 
-    #train_patient_ids = list(train_patient_ids)[0:20]
 
+    # train_patient_ids = list(train_patient_ids)[0:1300]
     train_inputs, train_labels = get_patient_features(train_patient_ids)
     #train_labels = get_patient_labels(train_patient_ids)
-
     num_patients = len(train_inputs)
-    X = np.ndarray(shape=(num_patients, FLAGS.transfer_values_shape + FLAGS.num_classes_luna), dtype=np.float32)
+    X = np.ndarray(shape=(num_patients, FLAGS.transfer_values_shape + FLAGS.num_classes), dtype=np.float32)
     Y = np.ndarray(shape=(num_patients), dtype=np.float32)
 
     count = 0
@@ -202,10 +200,10 @@ def train_nn():
     print('X.shape: {}'.format(X.shape))
     print('Y.shape: {}'.format(Y.shape))
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
-
     print('\nSplitting data into train, validation')
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y, test_size=0.20)
 
+    klass_weights = np.asarray([1.0/0.25, 1.0/0.75])
     del X
     del Y
 
@@ -228,7 +226,10 @@ def train_nn():
         else:
             x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number, FLAGS.batch_size)
             k = 1.0
-        return {x: x_batch, y_labels: y_batch, keep_prob: k}
+        crss_entrpy_weights = np.ones((y_batch.shape[0]))
+        for m in range(y_batch.shape[0]):
+            crss_entrpy_weights[m] = np.amax(y_batch[m] * klass_weights)
+        return {x: x_batch, y_labels: y_batch, keep_prob: k, cross_entropy_weights: crss_entrpy_weights}
 
     # Graph construction
     graph = tf.Graph()
@@ -239,7 +240,7 @@ def train_nn():
         keep_prob = tf.placeholder(tf.float32)
         class_weights_base = tf.ones_like(y_labels)
         class_weights = tf.multiply(class_weights_base , [1.0/0.25, 1.0/0.75])
-
+        cross_entropy_weights = tf.placeholder(tf.float32, shape=[None], name='cross_entropy_weights')
         # layer1
         #conv1_out, conv1_weights = conv1d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = 3, layer_name ='conv1')
 
@@ -292,9 +293,17 @@ def train_nn():
             log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
             tf.summary.scalar('log_loss', log_loss)
 
+        with tf.name_scope('weighted_log_loss'):
+            weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15) #+ tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+            tf.summary.scalar('weighted_log_loss', weighted_log_loss)
+
         with tf.name_scope('softmax_cross_entropy'):
             softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, final_layer_out)
             tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)
+
+        with tf.name_scope('weighted_softmax_cross_entropy'):
+            weighted_softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, final_layer_out, weights=cross_entropy_weights)
+            tf.summary.scalar('weighted_softmax_cross_entropy', weighted_softmax_cross_entropy)
 
         with tf.name_scope('sparse_softmax_cross_entropy'):
             y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
@@ -311,7 +320,7 @@ def train_nn():
             tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_softmax_cross_entropy)
 
         # Class Based Metrics calculations
         y_pred_class = tf.argmax(y, 1)
@@ -502,9 +511,10 @@ def train_nn():
 if __name__ == '__main__':
     start_time = time.time()
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle_3/stage1_features_v5/'
-    LABELS = '/kaggle/dev/data-science-bowl-2017-data/stage1_labels.csv'
+    DATA_PATH = '/kaggle_3/all_stage_features/'
+    LABELS = '/kaggle/dev/data-science-bowl-2017-data/all_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
+    STAGE2_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage2_sample_submission.csv'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
     MODELS = '/kaggle/dev/data-science-bowl-2017-data/models/'
 
@@ -516,11 +526,11 @@ if __name__ == '__main__':
                                 """Number of steps after which analysis code is executed""")
     tf.app.flags.DEFINE_integer('num_classes', 2,
                                 """Number of classes to predict.""")
-    tf.app.flags.DEFINE_integer('num_classes_luna', 4,
+    tf.app.flags.DEFINE_integer('num_classes_luna', 2,
                                 """Number of classes predicted by LUNA model.""")
     tf.app.flags.DEFINE_integer('transfer_values_shape', 1000,
                                 'Size of transfer values')
-    tf.app.flags.DEFINE_integer('batch_size', 32,
+    tf.app.flags.DEFINE_integer('batch_size', 128,
                                 """Number of items in a batch.""")
     tf.app.flags.DEFINE_integer('max_iterations', 200000,
                                 """Number of batches to run.""")
