@@ -42,22 +42,36 @@ def get_patient_features(patient_ids):
     patient_count = 0
     chunk_count = 0
     for patient_id in patient_ids:
+        num_class_1 = 0
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
         label = int(labels.loc[labels['id'] == patient_id, 'cancer'])
 
+        # for class 1
         for i in range(predictions.shape[0]):
-            predicted_class  = np.argmax(predictions[i])
-            #print('predicted_class', predicted_class)
-            if predicted_class != 0:
+            predicted_class = np.argmax(predictions[i])
+            if (predicted_class == 1):
                 features = np.ndarray(shape=(transfer_values.shape[1] + predictions.shape[1]), dtype=np.float32)
                 features[0 : transfer_values.shape[1]] = transfer_values[i]
                 features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = predictions[i]
                 input_features.append(features)
                 input_labels.append(label)
+                num_class_1 += 1
             chunk_count += 1
 
-        patient_count = patient_count + 1
+        # for class 0
+        num_class_0 = 0
+        for j in range(predictions.shape[0]):
+            predicted_class = np.argmax(predictions[j])
+            if(predicted_class == 0) and (num_class_0 < num_class_1):
+                features = np.ndarray(shape=(transfer_values.shape[1] + predictions.shape[1]), dtype=np.float32)
+                features[0 : transfer_values.shape[1]] = transfer_values[j]
+                features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = predictions[j]
+                input_features.append(features)
+                input_labels.append(label)
+                num_class_0 += 1
+            chunk_count += 1
+        patient_count += 1
         print('Loaded data for patient {}/{}/{}'.format(patient_count, num_patients, chunk_count))
 
     return input_features, input_labels
