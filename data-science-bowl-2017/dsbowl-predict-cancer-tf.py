@@ -217,7 +217,7 @@ def train_nn():
     print('\nSplitting data into train, validation')
     train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y, test_size=0.20)
 
-    klass_weights = np.asarray([1.0/0.25, 1.0/0.75])
+    klass_weights = np.asarray([10*(1.0/0.25), 1.0/0.75])
     del X
     del Y
 
@@ -253,7 +253,7 @@ def train_nn():
         y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
         keep_prob = tf.placeholder(tf.float32)
         class_weights_base = tf.ones_like(y_labels)
-        class_weights = tf.multiply(class_weights_base , [1.0/0.25, 1.0/0.75])
+        class_weights = tf.multiply(class_weights_base , [10*(1.0/0.25), 1.0/0.75])
         cross_entropy_weights = tf.placeholder(tf.float32, shape=[None], name='cross_entropy_weights')
         # layer1
         #conv1_out, conv1_weights = conv1d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = 3, layer_name ='conv1')
