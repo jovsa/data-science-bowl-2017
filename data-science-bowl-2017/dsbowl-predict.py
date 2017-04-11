@@ -534,12 +534,13 @@ def predict_features():
         processes[p_id].start()
 
     for key in processes.keys():
+        processes[key].close()
         processes[key].join()
 
 if __name__ == '__main__':
     start_time = time.time()
 
-    NUM_PROCESSES = 12
+    NUM_PROCESSES = mp.cpu_count()
     DATA_PATH = '/kaggle_3/stage1_processed_unseg/'
     DATA_PATH2 = '/kaggle_2/stage2_processed_unseg/'
     OUTPUT_PATH = '/kaggle_3/all_stage_features/'
@@ -574,6 +575,7 @@ if __name__ == '__main__':
                                 """Whether to allow soft placement of calculations by tf.""")
     tf.app.flags.DEFINE_boolean('allow_growth', True,
                                 """Whether to allow GPU growth by tf.""")
+
 
     predict_features()
     end_time = time.time()
