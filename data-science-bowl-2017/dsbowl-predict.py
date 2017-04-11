@@ -154,8 +154,7 @@ def get_patient_data_chunks(patient_id):
 
     return X
 
-def worker(patient_uid):
-    print("start:", patient_uid )
+def worker(patient_uids):
     # Graph construction
     graph = tf.Graph()
     with graph.as_default():
@@ -282,25 +281,17 @@ def worker(patient_uid):
 
         sum_row_0 = tf.reduce_sum(confusion_matrix[0, :])
         sum_row_1 = tf.reduce_sum(confusion_matrix[1, :])
-        # sum_row_2 = tf.reduce_sum(confusion_matrix[2, :])
-        # sum_row_3 = tf.reduce_sum(confusion_matrix[3, :])
         sum_col_0 = tf.reduce_sum(confusion_matrix[:, 0])
         sum_col_1 = tf.reduce_sum(confusion_matrix[:, 1])
-        # sum_col_2 = tf.reduce_sum(confusion_matrix[:, 2])
-        # sum_col_3 = tf.reduce_sum(confusion_matrix[:, 3])
 
         sum_all = tf.reduce_sum(confusion_matrix[:, :])
 
         with tf.name_scope('precision'):
             precision_0 = confusion_matrix[0,0] / sum_col_0
             precision_1 = confusion_matrix[1,1] / sum_col_1
-            # precision_2 = confusion_matrix[2,2] / sum_col_2
-            # precision_3 = confusion_matrix[3,3] / sum_col_3
 
             tf.summary.scalar('precision_0', precision_0)
             tf.summary.scalar('precision_1', precision_1)
-            # tf.summary.scalar('precision_2', precision_2)
-            # tf.summary.scalar('precision_3', precision_3)
 
         with tf.name_scope('recall'):
             recall_0 = confusion_matrix[0,0] / sum_row_0
@@ -442,99 +433,113 @@ def worker(patient_uid):
         saver = tf.train.import_meta_graph(MODEL_PATH + 'model.meta')
         saver.restore(sess, tf.train.latest_checkpoint(MODEL_PATH))
 
-        # print('Processing patient {}'.format(patient_uid))
-        X = get_patient_data_chunks(patient_uid)
-        # print('Got Data for patient {}'.format(patient_uid))
-        # X = np.ndarray([x_in.shape[0], FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], dtype=np.float32)
-        # X[0: x_in.shape[0], :, :, :, :] = img_to_rgb(x_in)
+        for patient_uid in patient_uids:
+            print("Processing patient ", patient_uid)
+            if os.path.isfile(DATA_PATH + PATIENT_SCANS + patient_uid + '.npy'):
+                scans = np.load(DATA_PATH + PATIENT_SCANS + patient_uid + '.npy')
+            elif os.path.isfile(DATA_PATH2 + PATIENT_SCANS + patient_uid + '.npy'):
+                scans = np.load(DATA_PATH2 + PATIENT_SCANS + patient_uid + '.npy')
+            else:
+                with open("error.out", "a") as myfile:
+                    myfile.write('Couldnt find scan for patient {}'.format(patient_uid))
 
-        # print('X: {}'.format(X.shape))
-        predictions = np.ndarray([X.shape[0], FLAGS.num_classes], dtype=np.float32)
-        transfer_values = np.ndarray([X.shape[0], 1000], dtype=np.float32)
-        #transfer_values_dense_7 = np.ndarray([X.shape[0], 128], dtype=np.float32)
+            step_size = int(FLAGS.chunk_size * (1 - OVERLAP_PERCENTAGE))
+            num_chunks_0 = int(scans.shape[0] / step_size) + 1
+            num_chunks_1 = int(scans.shape[1] / step_size) + 1
+            num_chunks_2 = int(scans.shape[2] / step_size) + 1
+            total_num_chunks = num_chunks_0 * num_chunks_1 * num_chunks_2
+            chunk_list = []
 
-        num_batches = int(math.ceil(X.shape[0] / FLAGS.batch_size))
-        for i in range(0, num_batches):
-            batch_start = i * FLAGS.batch_size
-            batch_end = batch_start + FLAGS.batch_size
-            batch_end = X.shape[0] if (batch_end > X.shape[0]) else batch_end
-            feed_dict = {x: X[batch_start : batch_end],
-                         y_labels: np.zeros([batch_end - batch_start, FLAGS.num_classes], dtype=np.float32),
-                         keep_prob: 1.0}
+            predictions = np.ndarray([total_num_chunks, FLAGS.num_classes], dtype=np.float32)
+            transfer_values = np.ndarray([total_num_chunks, 1, 1, 1, 256], dtype=np.float32)
 
-            # print('X[{}]: {}'.format(i, X[batch_start:batch_end].shape))
-            pred, trans_val = sess.run([y, dense8_out], feed_dict=feed_dict)
-            predictions[batch_start: batch_end, :] = pred
-            transfer_values[batch_start: batch_end, :] = trans_val
-            #transfer_values_dense_7[batch_start: batch_end, :] = trans_val_dense_7
-            #print('predictions: ' + str(predictions.shape))
-            #print('transfer_values: ' + str(transfer_values.shape))
+            predictions_idx = 0
+            for i in range(0, num_chunks_0):
+                coordZ1 = i * step_size
+                coordZ2 = coordZ1 + FLAGS.chunk_size
 
-        np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
-        np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
-        #np.save(OUTPUT_PATH + patient_uid + '_transfer_values_dense_7.npy', transfer_values_dense_7)
-        del X
+                for j in range(0, num_chunks_1):
+                    coordY1 = j * step_size
+                    coordY2 = coordY1 + FLAGS.chunk_size
+
+                    for k in range(0, num_chunks_2):
+                        coordX1 = k * step_size
+                        coordX2 = coordX1 + FLAGS.chunk_size
+
+                        coordZ2 = scans.shape[0] if  (coordZ2 > scans.shape[0]) else coordZ2
+                        coordY2 = scans.shape[1] if  (coordY2 > scans.shape[1]) else coordY2
+                        coordX2 = scans.shape[2] if  (coordX2 > scans.shape[2]) else coordX2
+
+                        chunk = np.full((FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size), -1000.0)
+                        chunk[0:coordZ2-coordZ1, 0:coordY2-coordY1, 0:coordX2-coordX1] = scans[coordZ1:coordZ2, coordY1:coordY2, coordX1:coordX2]
+                        chunk_list.append(chunk)
+
+                        if (len(chunk_list) == FLAGS.batch_size) or ((i == num_chunks_0 -1) and (j == num_chunks_1 -1) and (k == num_chunks_2 - 1)):
+                            X = np.ndarray([len(chunk_list), FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size], dtype=np.float32)
+                            for m in range(0, len(chunk_list)):
+                                X[m, :, :, :] = chunk_list[m]
+
+                            # Normalizing and Zero Centering and Adding extra channel
+                            X = X.astype(np.float32, copy=False)
+                            X = normalize(X)
+                            X = zero_center(X)
+                            X = img_to_rgb(X)
+
+                            feed_dict = {x: X, y_labels: np.zeros([X.shape[0], FLAGS.num_classes], dtype=np.float32), keep_prob: 1.0}
+                            pred, trans_val = sess.run([y, relu5_3_out], feed_dict=feed_dict)
+
+                            batch_start = predictions_idx
+                            batch_end = predictions_idx + X.shape[0]
+                            predictions[batch_start: batch_end, :] = pred
+                            transfer_values[batch_start: batch_end, :] = trans_val
+
+                            predictions_idx = predictions_idx + X.shape[0]
+                            chunk_list.clear()
+                            del X
+
+            np.save(OUTPUT_PATH + patient_uid + '_predictions.npy', predictions)
+            np.save(OUTPUT_PATH + patient_uid + '_transfer_values.npy', transfer_values)
+            del scans
 
     sess.close()
-    print("end:", patient_uid )
 
 def predict_features():
-    # Will do this loop twice two catch any files that errored out due to out of memory error
-    for counter in range(0,2):
-        uids = []
-        processed_patients = set()
-        for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
-            n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
-            processed_patients.add(n.group(1))
+    processed_patients = set()
+    for patients in glob.glob(OUTPUT_PATH + '*_transfer_values.npy'):
+        n = re.match('([a-f0-9].*)_transfer_values.npy', os.path.basename(patients))
+        processed_patients.add(n.group(1))
 
-        for folder in glob.glob(DATA_PATH + PATIENT_SCANS + '*'):
-            m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
-            patient_uid = m.group(1)
+    train_patient_ids = set()
+    for folder in glob.glob(DATA_PATH + PATIENT_SCANS + '*'):
+        m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
+        patient_uid = m.group(1)
+        train_patient_ids.add(patient_uid)
 
-            if patient_uid in processed_patients:
-                print('Skipping already processed patient {}'.format(patient_uid))
-                continue
-            else:
-                uids.append(patient_uid)
+    for folder in glob.glob(DATA_PATH2 + PATIENT_SCANS + '*'):
+        m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
+        patient_uid = m.group(1)
+        train_patient_ids.add(patient_uid)
 
-        for folder in glob.glob(DATA_PATH2 + PATIENT_SCANS + '*'):
-            m = re.match(PATIENT_SCANS +'([a-f0-9].*).npy', os.path.basename(folder))
-            patient_uid = m.group(1)
+    train_patient_ids = list(train_patient_ids.difference(processed_patients))
 
-            if patient_uid in processed_patients:
-                print('Skipping already processed patient {}'.format(patient_uid))
-                continue
-            else:
-                uids.append(patient_uid)
+    processes = {}
+    patient_batch_size = int(math.ceil(float(len(train_patient_ids)) / NUM_PROCESSES))
 
-        # Predict batch size = 3
-        for i in range(0, len(uids), 3):
-            if i+2 < len(uids) and counter == 0:
-                p0 = mp.Process(target=worker, args=(uids[i],))
-                p1 = mp.Process(target=worker, args=(uids[i+1],))
-                p2 = mp.Process(target=worker, args=(uids[i+2],))
+    for p_id in range(NUM_PROCESSES):
+        print('Starting process ', p_id)
+        start = p_id * patient_batch_size
+        end = start + patient_batch_size
+        end = len(train_patient_ids) if end > len(train_patient_ids) else end
+        processes[p_id] = mp.Process(target=worker, args=(train_patient_ids[start:end],))
+        processes[p_id].start()
 
-                p0.start()
-                p1.start()
-                p2.start()
-
-                p0.join()
-                p1.join()
-                p2.join()
-            else:
-                j=i
-                while (j<len(uids)):
-                    p0 = mp.Process(target=worker, args=(uids[j],))
-                    p0.start()
-                    p0.join()
-                    j = j+1
-
-        del processed_patients
-        del uids
+    for key in processes.keys():
+        processes[key].join()
 
 if __name__ == '__main__':
     start_time = time.time()
 
+    NUM_PROCESSES = 12
     DATA_PATH = '/kaggle_3/stage1_processed_unseg/'
     DATA_PATH2 = '/kaggle_2/stage2_processed_unseg/'
     OUTPUT_PATH = '/kaggle_3/all_stage_features/'
@@ -551,7 +556,7 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('chunk_size', 48,
                                 """Chunk size""")
-    tf.app.flags.DEFINE_integer('batch_size', 600,
+    tf.app.flags.DEFINE_integer('batch_size', 128,
                                 """Number of items in a batch.""")
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
