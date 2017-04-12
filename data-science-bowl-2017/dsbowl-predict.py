@@ -534,17 +534,16 @@ def predict_features():
         processes[p_id].start()
 
     for key in processes.keys():
-        processes[key].close()
         processes[key].join()
 
 if __name__ == '__main__':
     start_time = time.time()
 
     NUM_PROCESSES = mp.cpu_count()
-    DATA_PATH = '/kaggle_3/stage1_processed_unseg/'
-    DATA_PATH2 = '/kaggle_2/stage2_processed_unseg/'
-    OUTPUT_PATH = '/kaggle_3/all_stage_features/'
-    PATIENT_SCANS = 'scan_lungs_'
+    DATA_PATH = '/kaggle/dev/data-science-bowl-2017-data/stage1_processed/'
+    DATA_PATH2 = '/kaggle_3/stage2_processed/'
+    OUTPUT_PATH = '/kaggle_3/all_stage_features_segmented/'
+    PATIENT_SCANS = 'scan_segmented_lungs_fill_'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
     MODEL_PATH = '/kaggle_2/luna/luna16/models/4ba9ca74-7994-42bf-9d9f-3a8dd682e623/'
     OVERLAP_PERCENTAGE = 0.7
@@ -557,7 +556,7 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('chunk_size', 48,
                                 """Chunk size""")
-    tf.app.flags.DEFINE_integer('batch_size', 128,
+    tf.app.flags.DEFINE_integer('batch_size', 192,
                                 """Number of items in a batch.""")
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
