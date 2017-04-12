@@ -33,6 +33,12 @@ def get_patient_labels(patient_ids):
         input_labels[patient_id] = int(labels.loc[labels['id'] == patient_id, 'cancer'])
     return input_labels
 
+def flatten_1d_np(arr):
+    arr_shape = np.asarray(arr.shape)
+    num_features = arr_shape[1:5].prod()
+    arr_flat = arr.reshape((-1, num_features))
+    return arr_flat
+
 def get_patient_features(patient_ids):
     input_features = []
     input_labels = []
@@ -42,9 +48,9 @@ def get_patient_features(patient_ids):
     patient_count = 0
     chunk_count = 0
     for patient_id in patient_ids:
-        num_class_1 = 0
         predictions = np.array(np.load(DATA_PATH + patient_id + '_predictions.npy'))
         transfer_values = np.array(np.load(DATA_PATH + patient_id + '_transfer_values.npy'))
+        transfer_values = flatten_1d_np(transfer_values)
         label = int(labels.loc[labels['id'] == patient_id, 'cancer'])
 
         # for class 1
@@ -52,11 +58,10 @@ def get_patient_features(patient_ids):
             predicted_class = np.argmax(predictions[i])
             if (predicted_class == 1):
                 features = np.ndarray(shape=(transfer_values.shape[1] + predictions.shape[1]), dtype=np.float32)
-                features[0 : transfer_values.shape[1]] = np.random.standard_normal(size= transfer_values.shape[1])
-                features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = np.random.standard_normal(size= predictions.shape[1])
+                features[0 : transfer_values.shape[1]] = transfer_values[i]
+                features[transfer_values.shape[1] : transfer_values.shape[1] + predictions.shape[1]] = predictions[i]
                 input_features.append(features)
                 input_labels.append(label)
-                num_class_1 += 1
             chunk_count += 1
         patient_count += 1
         print('Loaded data for patient {}/{}/{}'.format(patient_count, num_patients, chunk_count))
@@ -184,10 +189,9 @@ def train_nn():
     test_patient_ids = set(sample_submission['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
 
-
-    # train_patient_ids = list(train_patient_ids)[0:1300]
+    #train_patient_ids = list(train_patient_ids)[0:20]
     train_inputs, train_labels = get_patient_features(train_patient_ids)
-    #train_labels = get_patient_labels(train_patient_ids)
+
     num_patients = len(train_inputs)
     X = np.ndarray(shape=(num_patients, FLAGS.transfer_values_shape + FLAGS.num_classes), dtype=np.float32)
     Y = np.ndarray(shape=(num_patients), dtype=np.float32)
@@ -242,43 +246,39 @@ def train_nn():
         class_weights_base = tf.ones_like(y_labels)
         class_weights = tf.multiply(class_weights_base , [1.0/0.25, 1.0/0.75])
         cross_entropy_weights = tf.placeholder(tf.float32, shape=[None], name='cross_entropy_weights')
-        # layer1
-        #conv1_out, conv1_weights = conv1d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = 3, layer_name ='conv1')
 
-        #relu1_out = relu_1d(inputs = conv1_out, layer_name='relu1')
+        dense11_out = dense_1d(inputs=x, num_inputs=int(x.shape[1]), num_outputs=8192, layer_name ='fc11')
+        relu11_out = relu_1d(inputs = dense11_out, layer_name='relu11')
 
-        # layer2
-        #conv2_out, conv2_weights = conv1d(inputs = relu1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = 3, layer_name ='conv2')
+        dense12_out = dense_1d(inputs=relu11_out, num_inputs=8192, num_outputs=4096, layer_name ='fc12')
+        relu12_out = relu_1d(inputs = dense12_out, layer_name='relu12')
 
-        #relu2_out = relu_1d(inputs = conv2_out, layer_name='relu2')
+        dense13_out = dense_1d(inputs=relu12_out, num_inputs=4096, num_outputs=4096, layer_name ='fc13')
+        relu13_out = relu_1d(inputs = dense13_out, layer_name='relu13')
 
-        # layer3
-        #conv3_out, conv3_weights = conv1d(inputs = relu2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = 3, layer_name ='conv3')
-
-        #relu3_out = relu_1d(inputs = conv3_out, layer_name='relu3')
-
-        #dropout3_out = dropout_1d(inputs = relu3_out, keep_prob = keep_prob, layer_name='drop3')
-
-        #flatten4_out, flatten4_features = flatten_1d(dropout3_out, layer_name='flatten4')
-
-        dense1_out = dense_1d(inputs=x, num_inputs=int(x.shape[1]), num_outputs=4096, layer_name ='fc1')
+        dense1_out = dense_1d(inputs=relu13_out, num_inputs=4096, num_outputs=4096, layer_name ='fc1')
         relu1_out = relu_1d(inputs = dense1_out, layer_name='relu1')
 
-        dense2_out = dense_1d(inputs=relu1_out, num_inputs=4096, num_outputs=2048, layer_name ='fc2')
+        dropout1_out = dropout_1d(inputs = relu1_out, keep_prob = keep_prob, layer_name='drop1')
+
+        dense2_out = dense_1d(inputs=dropout1_out, num_inputs=int(dropout1_out.shape[1]), num_outputs=2048, layer_name ='fc2')
         relu2_out = relu_1d(inputs = dense2_out, layer_name='relu2')
 
-        dense3_out = dense_1d(inputs=relu2_out, num_inputs=2048, num_outputs=1024, layer_name ='fc3')
+        dropout2_out = dropout_1d(inputs = relu2_out, keep_prob = keep_prob, layer_name='drop2')
+
+        dense3_out = dense_1d(inputs=dropout2_out, num_inputs=int(dropout2_out.shape[1]), num_outputs=1024, layer_name ='fc3')
         relu3_out = relu_1d(inputs = dense3_out, layer_name='relu3')
 
+        dropout3_out = dropout_1d(inputs = relu3_out, keep_prob = keep_prob, layer_name='drop3')
+
         # layer6
-        dense5_out = dense_1d(inputs=relu3_out, num_inputs=1024, num_outputs=512, layer_name ='fc5')
+        dense5_out = dense_1d(inputs=dropout3_out, num_inputs=int(dropout3_out.shape[1]), num_outputs=512, layer_name ='fc5')
         relu5_out = relu_1d(inputs = dense5_out, layer_name='relu5')
 
         dropout5_out = dropout_1d(inputs = relu5_out, keep_prob = keep_prob, layer_name='drop5')
 
         # layer7
         dense6_out = dense_1d(inputs=dropout5_out, num_inputs=int(dropout5_out.shape[1]), num_outputs=128, layer_name ='fc6')
-
         relu6_out = relu_1d(inputs = dense6_out, layer_name='relu6')
 
         dropout6_out = dropout_1d(inputs = relu6_out, keep_prob = keep_prob, layer_name='drop6')
@@ -321,7 +321,7 @@ def train_nn():
             tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(weighted_softmax_cross_entropy)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
 
         # Class Based Metrics calculations
         y_pred_class = tf.argmax(y, 1)
@@ -529,7 +529,7 @@ if __name__ == '__main__':
                                 """Number of classes to predict.""")
     tf.app.flags.DEFINE_integer('num_classes_luna', 2,
                                 """Number of classes predicted by LUNA model.""")
-    tf.app.flags.DEFINE_integer('transfer_values_shape', 1000,
+    tf.app.flags.DEFINE_integer('transfer_values_shape', 256,
                                 'Size of transfer values')
     tf.app.flags.DEFINE_integer('batch_size', 128,
                                 """Number of items in a batch.""")
