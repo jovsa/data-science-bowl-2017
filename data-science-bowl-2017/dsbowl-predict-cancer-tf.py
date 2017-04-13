@@ -186,8 +186,11 @@ def train_nn():
         patient_ids.add(patient_id)
 
     sample_submission = pd.read_csv(STAGE2_SUBMISSION)
+    defective_patients = pd.read_csv(DEFECTIVE_PATIENTS)
     test_patient_ids = set(sample_submission['id'].tolist())
+    defective_patients_ids = set(defective_patients['id'].tolist())
     train_patient_ids = patient_ids.difference(test_patient_ids)
+    train_patient_ids = train_patient_ids.difference(defective_patients_ids)
 
     #train_patient_ids = list(train_patient_ids)[0:20]
     train_inputs, train_labels = get_patient_features(train_patient_ids)
@@ -512,12 +515,13 @@ def train_nn():
 if __name__ == '__main__':
     start_time = time.time()
     OUTPUT_PATH = '/kaggle/dev/data-science-bowl-2017-data/submissions/'
-    DATA_PATH = '/kaggle_3/all_stage_features/'
+    DATA_PATH = '/kaggle_3/all_stage_features_segmented/'
     LABELS = '/kaggle/dev/data-science-bowl-2017-data/all_labels.csv'
     STAGE1_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage1_sample_submission.csv'
     STAGE2_SUBMISSION = '/kaggle/dev/data-science-bowl-2017-data/stage2_sample_submission.csv'
     TENSORBOARD_SUMMARIES = '/kaggle/dev/data-science-bowl-2017-data/tensorboard_summaries/'
     MODELS = '/kaggle/dev/data-science-bowl-2017-data/models/'
+    DEFECTIVE_PATIENTS = '/kaggle/dev/jovan/data-science-bowl-2017/data-science-bowl-2017/defective_patients.csv'
 
     #globals initializing
     FLAGS = tf.app.flags.FLAGS
