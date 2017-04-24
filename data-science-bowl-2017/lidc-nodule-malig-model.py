@@ -579,7 +579,7 @@ def train_3d_nn():
 
 if __name__ == '__main__':
     start_time = time.time()
-    DATA_PATH = '/kaggle_2/lidc_idri/data/all_nodules_nz/'
+    DATA_PATH = '/kaggle_2/lidc_idri/data/all_nodules_nz_aug/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/lidc_idri/tensorboard_summaries/'
     MODELS = '/kaggle_2/lidc_idri/models/'
 
