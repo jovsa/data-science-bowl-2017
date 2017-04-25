@@ -144,26 +144,50 @@ def train_3d_nn():
     print('Y.shape', Y.shape)
     print('np.bincount(Y)', np.bincount(Y.astype(dtype=np.int64)))
 
+    SAMPLE_SIZE = 60
+
+    x = np.ndarray((SAMPLE_SIZE*6), dtype=np.object)
+    y = np.ndarray((SAMPLE_SIZE*6), dtype=np.float32)
+
+    x[0:SAMPLE_SIZE] = X[Y==0.0][0:SAMPLE_SIZE]
+    x[SAMPLE_SIZE: SAMPLE_SIZE*2] = X[Y==1.0][0:SAMPLE_SIZE]
+    x[SAMPLE_SIZE*2:SAMPLE_SIZE*3] = X[Y==2.0][0:SAMPLE_SIZE]
+    x[SAMPLE_SIZE*3:SAMPLE_SIZE*4] = X[Y==3.0][0:SAMPLE_SIZE]
+    x[SAMPLE_SIZE*4:SAMPLE_SIZE*5] = X[Y==4.0][0:SAMPLE_SIZE]
+    x[SAMPLE_SIZE*5:SAMPLE_SIZE*6] = X[Y==5.0][0:SAMPLE_SIZE]
+
+    y[0:SAMPLE_SIZE] = [0.0]*SAMPLE_SIZE
+    y[SAMPLE_SIZE:SAMPLE_SIZE*2] = [1.0]*SAMPLE_SIZE
+    y[SAMPLE_SIZE*2:SAMPLE_SIZE*3] = [2.0]*SAMPLE_SIZE
+    y[SAMPLE_SIZE*3:SAMPLE_SIZE*4] = [3.0]*SAMPLE_SIZE
+    y[SAMPLE_SIZE*4:SAMPLE_SIZE*5] = [4.0]*SAMPLE_SIZE
+    y[SAMPLE_SIZE*5:SAMPLE_SIZE*6] = [5.0]*SAMPLE_SIZE
+
+    # print(x)
+    # print(y)
+    print('Using SAMPLE_SIZE', SAMPLE_SIZE)
+    print('x.shape', x.shape)
+    print('y.shape', y.shape)
+
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
     print('Splitting into train, validation sets')
-    # Y = np.argmax(Y, axis = 1)
 
-    # Crunch 4 classes to 2
-    # Y[Y == 2] = 1
-    # Y[Y == 3] = 1
-
-    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y, test_size=0.20)
+    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
 
     #klass_weights = np.asarray([1375, 1025, 1638, 2676,  968,  709])
     # Free up X and Y memory
     del X
     del Y
+    del x
+    del y
     print("Total time to split: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
     print('train_x: {}'.format(train_x.shape))
     print('validation_x: {}'.format(validation_x.shape))
     print('train_y: {}'.format(train_y.shape))
     print('validation_y: {}'.format(validation_y.shape))
+    print('np.bincount(train_y)', np.bincount(train_y.astype(dtype=np.int64)))
+    print('np.bincount(validation_y)', np.bincount(validation_y.astype(dtype=np.int64)))
 
     train_y = (np.arange(FLAGS.num_classes) == train_y[:, None])+0
     validation_y = (np.arange(FLAGS.num_classes) == validation_y[:, None])+0
@@ -223,50 +247,50 @@ def train_3d_nn():
         pool1_out = max_pool_3d(inputs = relu1_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool1')
 
         # layer2
-        conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1], layer_name ='conv2_1')
-        relu2_1_out = relu_3d(inputs = conv2_1_out, layer_name='relu2_1')
+        # conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1], layer_name ='conv2_1')
+        # relu2_1_out = relu_3d(inputs = conv2_1_out, layer_name='relu2_1')
 
-        conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 32, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv2_2')
-        relu2_2_out = relu_3d(inputs = conv2_2_out, layer_name='relu2_2')
+        # conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 32, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv2_2')
+        # relu2_2_out = relu_3d(inputs = conv2_2_out, layer_name='relu2_2')
 
-        pool2_out = max_pool_3d(inputs = relu2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool2')
+        # pool2_out = max_pool_3d(inputs = relu2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool2')
 
-        # layer3
-        conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv3_1')
-        relu3_1_out = relu_3d(inputs = conv3_1_out, layer_name='relu3_1')
+        # # layer3
+        # conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv3_1')
+        # relu3_1_out = relu_3d(inputs = conv3_1_out, layer_name='relu3_1')
 
-        conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_2')
-        relu3_2_out = relu_3d(inputs = conv3_2_out, layer_name='relu3_2')
+        # conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_2')
+        # relu3_2_out = relu_3d(inputs = conv3_2_out, layer_name='relu3_2')
 
-        conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_3')
-        relu3_3_out = relu_3d(inputs = conv3_3_out, layer_name='relu3_3')
+        # conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_3')
+        # relu3_3_out = relu_3d(inputs = conv3_3_out, layer_name='relu3_3')
 
-        pool3_out = max_pool_3d(inputs = relu3_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool3')
+        # pool3_out = max_pool_3d(inputs = relu3_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool3')
 
-        # layer4
-        conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv4_1')
-        relu4_1_out = relu_3d(inputs = conv4_1_out, layer_name='relu4_1')
+        # # layer4
+        # conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv4_1')
+        # relu4_1_out = relu_3d(inputs = conv4_1_out, layer_name='relu4_1')
 
-        conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_2')
-        relu4_2_out = relu_3d(inputs = conv4_2_out, layer_name='relu4_2')
+        # conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_2')
+        # relu4_2_out = relu_3d(inputs = conv4_2_out, layer_name='relu4_2')
 
-        conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_3')
-        relu4_3_out = relu_3d(inputs = conv4_3_out, layer_name='relu4_3')
+        # conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_3')
+        # relu4_3_out = relu_3d(inputs = conv4_3_out, layer_name='relu4_3')
 
-        pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool4')
+        # pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool4')
 
-        # layer5
-        conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv5_1')
-        relu5_1_out = relu_3d(inputs = conv5_1_out, layer_name='relu5_1')
+        # # layer5
+        # conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv5_1')
+        # relu5_1_out = relu_3d(inputs = conv5_1_out, layer_name='relu5_1')
 
-        conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_2')
-        relu5_2_out = relu_3d(inputs = conv5_2_out, layer_name='relu5_2')
+        # conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_2')
+        # relu5_2_out = relu_3d(inputs = conv5_2_out, layer_name='relu5_2')
 
-        conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_3')
-        relu5_3_out = relu_3d(inputs = conv5_3_out, layer_name='relu5_3')
+        # conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_3')
+        # relu5_3_out = relu_3d(inputs = conv5_3_out, layer_name='relu5_3')
 
-        pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool5')
-        flatten5_out, flatten5_features = flatten_3d(pool5_out, layer_name='flatten5')
+        # pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool5')
+        flatten5_out, flatten5_features = flatten_3d(pool1_out, layer_name='flatten5')
 
         # layer6
         dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, layer_name ='fc6')
@@ -274,12 +298,12 @@ def train_3d_nn():
         dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, layer_name='drop6')
 
         # layer7
-        dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, layer_name ='fc7')
-        relu7_out = relu_3d(inputs = dense7_out, layer_name='relu7')
-        dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, layer_name='drop7')
+        # dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, layer_name ='fc7')
+        # relu7_out = relu_3d(inputs = dense7_out, layer_name='relu7')
+        # dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, layer_name='drop7')
 
         # layer8
-        dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, layer_name ='fc8')
+        dense8_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=1000, layer_name ='fc8')
 
         # layer9
         dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, layer_name ='fc9')
@@ -289,11 +313,11 @@ def train_3d_nn():
 
         # Overall Metrics Calculations
         with tf.name_scope('log_loss'):
-            log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15)
+            log_loss = tf.losses.log_loss(y_labels, y, epsilon=10e-15) #+ tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
             tf.summary.scalar('log_loss', log_loss)
 
         with tf.name_scope('softmax_cross_entropy'):
-            softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out)
+            softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out) #+ tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
             tf.summary.scalar('softmax_cross_entropy', softmax_cross_entropy)
 
         with tf.name_scope('accuracy'):
@@ -311,7 +335,7 @@ def train_3d_nn():
 
         with tf.name_scope('sparse_softmax_cross_entropy'):
             y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
-            sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out)
+            sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out) #+ tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
             tf.summary.scalar('sparse_softmax_cross_entropy', sparse_softmax_cross_entropy)
 
         # with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
@@ -449,36 +473,36 @@ def train_3d_nn():
             tf.summary.scalar('false_negatives_4', fn_4)
             tf.summary.scalar('false_negatives_5', fn_5)
 
-        with tf.name_scope('log_loss_by_class'):
-            log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], epsilon=10e-15)
-            log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], epsilon=10e-15)
-            log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], epsilon=10e-15)
-            log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], epsilon=10e-15)
-            log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], epsilon=10e-15)
-            log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], epsilon=10e-15)
+        # with tf.name_scope('log_loss_by_class'):
+        #     log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], epsilon=10e-15)
+        #     log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], epsilon=10e-15)
+        #     log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], epsilon=10e-15)
+        #     log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], epsilon=10e-15)
+        #     log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], epsilon=10e-15)
+        #     log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], epsilon=10e-15)
+        #
+        #     #added extra '_' to avoid tenosorboard name collision with the main log_loss metric
+        #     tf.summary.scalar('log_loss__0', log_loss_0)
+        #     tf.summary.scalar('log_loss__1', log_loss_1)
+        #     tf.summary.scalar('log_loss__2', log_loss_2)
+        #     tf.summary.scalar('log_loss__3', log_loss_3)
+        #     tf.summary.scalar('log_loss__4', log_loss_4)
+        #     tf.summary.scalar('log_loss__5', log_loss_5)
 
-            #added extra '_' to avoid tenosorboard name collision with the main log_loss metric
-            tf.summary.scalar('log_loss__0', log_loss_0)
-            tf.summary.scalar('log_loss__1', log_loss_1)
-            tf.summary.scalar('log_loss__2', log_loss_2)
-            tf.summary.scalar('log_loss__3', log_loss_3)
-            tf.summary.scalar('log_loss__4', log_loss_4)
-            tf.summary.scalar('log_loss__5', log_loss_5)
-
-        with tf.name_scope('softmax_cross_entropy_by_class'):
-            softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], dense9_out[0])
-            softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], dense9_out[1])
-            softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], dense9_out[2])
-            softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], dense9_out[3])
-            softmax_cross_entropy_4 = tf.losses.softmax_cross_entropy(y_labels[4], dense9_out[4])
-            softmax_cross_entropy_5 = tf.losses.softmax_cross_entropy(y_labels[5], dense9_out[5])
-
-            tf.summary.scalar('softmax_cross_entropy_0', softmax_cross_entropy_0)
-            tf.summary.scalar('softmax_cross_entropy_1', softmax_cross_entropy_1)
-            tf.summary.scalar('softmax_cross_entropy_2', softmax_cross_entropy_2)
-            tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
-            tf.summary.scalar('softmax_cross_entropy_4', softmax_cross_entropy_4)
-            tf.summary.scalar('softmax_cross_entropy_5', softmax_cross_entropy_5)
+        # with tf.name_scope('softmax_cross_entropy_by_class'):
+        #     softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], dense9_out[0])
+        #     softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], dense9_out[1])
+        #     softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], dense9_out[2])
+        #     softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], dense9_out[3])
+        #     softmax_cross_entropy_4 = tf.losses.softmax_cross_entropy(y_labels[4], dense9_out[4])
+        #     softmax_cross_entropy_5 = tf.losses.softmax_cross_entropy(y_labels[5], dense9_out[5])
+        #
+        #     tf.summary.scalar('softmax_cross_entropy_0', softmax_cross_entropy_0)
+        #     tf.summary.scalar('softmax_cross_entropy_1', softmax_cross_entropy_1)
+        #     tf.summary.scalar('softmax_cross_entropy_2', softmax_cross_entropy_2)
+        #     tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
+        #     tf.summary.scalar('softmax_cross_entropy_4', softmax_cross_entropy_4)
+        #     tf.summary.scalar('softmax_cross_entropy_5', softmax_cross_entropy_5)
 
         with tf.name_scope('accuracy_by_class'):
             accuracy_0 = (tp_0 + tn_0)/(tp_0 + fp_0 + fn_0 + tn_0)
@@ -579,7 +603,7 @@ def train_3d_nn():
 
 if __name__ == '__main__':
     start_time = time.time()
-    DATA_PATH = '/kaggle_2/lidc_idri/data/all_nodules_nz_aug/'
+    DATA_PATH = '/kaggle_2/lidc_idri/data/all_nodules_nz/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/lidc_idri/tensorboard_summaries/'
     MODELS = '/kaggle_2/lidc_idri/models/'
 
@@ -587,7 +611,7 @@ if __name__ == '__main__':
     FLAGS = tf.app.flags.FLAGS
 
     ## Prediction problem specific
-    tf.app.flags.DEFINE_integer('iteration_analysis', 1000,
+    tf.app.flags.DEFINE_integer('iteration_analysis', 10,
                                 """Number of steps after which analysis code is executed""")
     tf.app.flags.DEFINE_integer('chunk_size', 32,
                                 """Size of chunks used.""")
