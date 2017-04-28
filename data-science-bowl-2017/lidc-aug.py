@@ -25,7 +25,7 @@ pd.options.mode.chained_assignment = None
 
 DATA_PATH_PREPROCESS_NODULES = '/kaggle_2/lidc_idri/data/nodules_chunked/'
 DATA_PATH_PREPROCESS_NON_NODULES = '/kaggle_2/lidc_idri/data/non_nodules_chunked/'
-DATA_PATH_POSTPROCESS = '/kaggle_2/lidc_idri/data/all_nodules_nz_aug/'
+DATA_PATH_POSTPROCESS = '/kaggle_2/lidc_idri/data/nodules_nz_aug/'
 CHUNK_SIZE = 32
 
 def get_ids(PATH):
@@ -101,5 +101,5 @@ def process_data(patient_ids, PATH):
     print('Processed {} chunks'.format(chunk_count))
 patient_ids = get_ids(DATA_PATH_PREPROCESS_NODULES)
 process_data(patient_ids, DATA_PATH_PREPROCESS_NODULES)
-patient_ids = get_ids(DATA_PATH_PREPROCESS_NON_NODULES)
-process_data(patient_ids, DATA_PATH_PREPROCESS_NON_NODULES)
+# patient_ids = get_ids(DATA_PATH_PREPROCESS_NON_NODULES)
+# process_data(patient_ids, DATA_PATH_PREPROCESS_NON_NODULES)
