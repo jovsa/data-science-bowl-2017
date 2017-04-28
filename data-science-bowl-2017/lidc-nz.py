@@ -25,7 +25,8 @@ pd.options.mode.chained_assignment = None
 
 DATA_PATH_PREPROCESS_NODULES = '/kaggle_2/lidc_idri/data/nodules_chunked/'
 DATA_PATH_PREPROCESS_NON_NODULES = '/kaggle_2/lidc_idri/data/non_nodules_chunked/'
-DATA_PATH_POSTPROCESS = '/kaggle_2/lidc_idri/data/all_nodules_nz/'
+DATA_PATH_POSTPROCESS = '/kaggle_2/lidc_idri/data/random_nodules_nz/'
+CHUNK_SIZE = 32
 
 def get_ids(PATH):
     ids = []
@@ -48,6 +49,7 @@ def zero_center(image):
     return image
 
 def process_data(patient_ids, PATH):
+    np.random.seed(42)
     chunk_count = 0
     patients_count = len(patient_ids)
     for count in tqdm(range(patients_count)):
@@ -60,12 +62,12 @@ def process_data(patient_ids, PATH):
 
         for idx in range(x.shape[0]):
             chunk_id = str(uuid.uuid4())
-            np.save(DATA_PATH_POSTPROCESS + chunk_id + '_X.npy', x[idx])
+            np.save(DATA_PATH_POSTPROCESS + chunk_id + '_X.npy', np.random.normal(0.0, 1.0, (CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE)))
             np.save(DATA_PATH_POSTPROCESS + chunk_id + '_Y.npy', y[idx])
         chunk_count = chunk_count + x.shape[0]
 
     print('Process {} chunks'.format(chunk_count))
 patient_ids = get_ids(DATA_PATH_PREPROCESS_NODULES)
 process_data(patient_ids, DATA_PATH_PREPROCESS_NODULES)
-patient_ids = get_ids(DATA_PATH_PREPROCESS_NON_NODULES)
-process_data(patient_ids, DATA_PATH_PREPROCESS_NON_NODULES)
+# patient_ids = get_ids(DATA_PATH_PREPROCESS_NON_NODULES)
+# process_data(patient_ids, DATA_PATH_PREPROCESS_NON_NODULES)
