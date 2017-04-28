@@ -144,42 +144,54 @@ def train_3d_nn():
     print('Y.shape', Y.shape)
     print('np.bincount(Y)', np.bincount(Y.astype(dtype=np.int64)))
 
-    SAMPLE_SIZE = 60
+    non_zero_nodules = Y != 0.0
+    X = X[non_zero_nodules]
+    Y = Y[non_zero_nodules]
 
-    x = np.ndarray((SAMPLE_SIZE*6), dtype=np.object)
-    y = np.ndarray((SAMPLE_SIZE*6), dtype=np.float32)
+    #print(Y_merge_class_3_2)
+    #X = X[Y_merge_class_3_2]
+    #Y = Y[Y_merge_class_3_2]
 
-    x[0:SAMPLE_SIZE] = X[Y==0.0][0:SAMPLE_SIZE]
-    x[SAMPLE_SIZE: SAMPLE_SIZE*2] = X[Y==1.0][0:SAMPLE_SIZE]
-    x[SAMPLE_SIZE*2:SAMPLE_SIZE*3] = X[Y==2.0][0:SAMPLE_SIZE]
-    x[SAMPLE_SIZE*3:SAMPLE_SIZE*4] = X[Y==3.0][0:SAMPLE_SIZE]
-    x[SAMPLE_SIZE*4:SAMPLE_SIZE*5] = X[Y==4.0][0:SAMPLE_SIZE]
-    x[SAMPLE_SIZE*5:SAMPLE_SIZE*6] = X[Y==5.0][0:SAMPLE_SIZE]
+    # print('X.shape', X.shape)
+    # print('Y.shape', Y.shape)
+    # print('np.bincount(Y)', np.bincount(Y.astype(dtype=np.int64)))
 
-    y[0:SAMPLE_SIZE] = [0.0]*SAMPLE_SIZE
-    y[SAMPLE_SIZE:SAMPLE_SIZE*2] = [1.0]*SAMPLE_SIZE
-    y[SAMPLE_SIZE*2:SAMPLE_SIZE*3] = [2.0]*SAMPLE_SIZE
-    y[SAMPLE_SIZE*3:SAMPLE_SIZE*4] = [3.0]*SAMPLE_SIZE
-    y[SAMPLE_SIZE*4:SAMPLE_SIZE*5] = [4.0]*SAMPLE_SIZE
-    y[SAMPLE_SIZE*5:SAMPLE_SIZE*6] = [5.0]*SAMPLE_SIZE
+    # SAMPLE_SIZE = 60
+
+    # x = np.ndarray((SAMPLE_SIZE*6), dtype=np.object)
+    # y = np.ndarray((SAMPLE_SIZE*6), dtype=np.float32)
+
+    # x[0:SAMPLE_SIZE] = X[Y==0.0][0:SAMPLE_SIZE]
+    # x[SAMPLE_SIZE: SAMPLE_SIZE*2] = X[Y==1.0][0:SAMPLE_SIZE]
+    # x[SAMPLE_SIZE*2:SAMPLE_SIZE*3] = X[Y==2.0][0:SAMPLE_SIZE]
+    # x[SAMPLE_SIZE*3:SAMPLE_SIZE*4] = X[Y==3.0][0:SAMPLE_SIZE]
+    # x[SAMPLE_SIZE*4:SAMPLE_SIZE*5] = X[Y==4.0][0:SAMPLE_SIZE]
+    # x[SAMPLE_SIZE*5:SAMPLE_SIZE*6] = X[Y==5.0][0:SAMPLE_SIZE]
+
+    # y[0:SAMPLE_SIZE] = [0.0]*SAMPLE_SIZE
+    # y[SAMPLE_SIZE:SAMPLE_SIZE*2] = [1.0]*SAMPLE_SIZE
+    # y[SAMPLE_SIZE*2:SAMPLE_SIZE*3] = [2.0]*SAMPLE_SIZE
+    # y[SAMPLE_SIZE*3:SAMPLE_SIZE*4] = [3.0]*SAMPLE_SIZE
+    # y[SAMPLE_SIZE*4:SAMPLE_SIZE*5] = [4.0]*SAMPLE_SIZE
+    # y[SAMPLE_SIZE*5:SAMPLE_SIZE*6] = [5.0]*SAMPLE_SIZE
 
     # print(x)
     # print(y)
-    print('Using SAMPLE_SIZE', SAMPLE_SIZE)
-    print('x.shape', x.shape)
-    print('y.shape', y.shape)
+    # print('Using SAMPLE_SIZE', SAMPLE_SIZE)
+    # print('x.shape', x.shape)
+    # print('y.shape', y.shape)
 
     print("Total time to load data: " + str(timedelta(seconds=int(round(time.time() - time0)))))
     print('Splitting into train, validation sets')
 
-    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(x, y, random_state=42, stratify=y, test_size=0.20)
+    train_x, validation_x, train_y, validation_y = model_selection.train_test_split(X, Y, random_state=42, stratify=Y, test_size=0.20)
 
-    #klass_weights = np.asarray([1375, 1025, 1638, 2676,  968,  709])
+    klass_weights = np.asarray([1025.0/7013.0, 1638.0/7013.0, 2673.0/7013.0, 968.0/7013.0, 709.0/7013.0])
     # Free up X and Y memory
     del X
     del Y
-    del x
-    del y
+    # del x
+    # del y
     print("Total time to split: " + str(timedelta(seconds=int(round(time.time() - time0)))))
 
     print('train_x: {}'.format(train_x.shape))
@@ -216,14 +228,14 @@ def train_3d_nn():
     def feed_dict(is_train, batch_number = 0):
         if is_train:
             x_batch, y_batch = get_batch(train_x, train_y)
-            k = FLAGS.dropout
+            k = FLAGS.keep_prob
         else:
             x_batch, y_batch = get_validation_batch(validation_x, validation_y, batch_number)
             k = 1.0
         crss_entrpy_weights = np.ones((y_batch.shape[0]))
-        # for m in range(y_batch.shape[0]):
-        #     crss_entrpy_weights[m] = np.amax(y_batch[m] * klass_weights)
-        return {x: x_batch, y_labels: y_batch, keep_prob: k}#, cross_entropy_weights: crss_entrpy_weights}
+        for m in range(y_batch.shape[0]):
+            crss_entrpy_weights[m] = np.amax(y_batch[m] * klass_weights)
+        return {x: x_batch, y_labels: y_batch, keep_prob: k, cross_entropy_weights: crss_entrpy_weights}
 
     # Graph construction
     graph = tf.Graph()
@@ -231,11 +243,11 @@ def train_3d_nn():
         x = tf.placeholder(tf.float32, shape=[None, FLAGS.chunk_size, FLAGS.chunk_size, FLAGS.chunk_size, 1], name = 'x')
         y = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name = 'y')
         y_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.num_classes], name ='y_labels')
-        #cross_entropy_weights = tf.placeholder(tf.float32, shape=[None], name ='cross_entropy_weights')
+        cross_entropy_weights = tf.placeholder(tf.float32, shape=[None], name ='cross_entropy_weights')
         keep_prob = tf.placeholder(tf.float32)
 
-        # class_weights_base = tf.ones_like(y_labels)
-        # class_weights = tf.multiply(class_weights_base , [69838.0/40513.0, 69838.0/29325.0])
+        class_weights_base = tf.ones_like(y_labels)
+        class_weights = tf.multiply(class_weights_base , [1025.0/7013.0, 1638.0/7013.0, 2673.0/7013.0, 968.0/7013.0, 709.0/7013.0])
 
         # layer1
         conv1_1_out, conv1_1_weights = conv3d(inputs = x, filter_size = 3, num_filters = 16, num_channels = 1, strides = [1, 3, 3, 3, 1], layer_name ='conv1_1')
@@ -247,63 +259,63 @@ def train_3d_nn():
         pool1_out = max_pool_3d(inputs = relu1_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool1')
 
         # layer2
-        # conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1], layer_name ='conv2_1')
-        # relu2_1_out = relu_3d(inputs = conv2_1_out, layer_name='relu2_1')
+        conv2_1_out, conv2_1_weights = conv3d(inputs = pool1_out, filter_size = 3, num_filters = 32, num_channels = 16, strides = [1, 3, 3, 3, 1], layer_name ='conv2_1')
+        relu2_1_out = relu_3d(inputs = conv2_1_out, layer_name='relu2_1')
 
-        # conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 32, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv2_2')
-        # relu2_2_out = relu_3d(inputs = conv2_2_out, layer_name='relu2_2')
+        conv2_2_out, conv2_2_weights = conv3d(inputs = relu2_1_out, filter_size = 3, num_filters = 32, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv2_2')
+        relu2_2_out = relu_3d(inputs = conv2_2_out, layer_name='relu2_2')
 
-        # pool2_out = max_pool_3d(inputs = relu2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool2')
+        pool2_out = max_pool_3d(inputs = relu2_2_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool2')
 
         # # layer3
-        # conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv3_1')
-        # relu3_1_out = relu_3d(inputs = conv3_1_out, layer_name='relu3_1')
+        conv3_1_out, conv3_1_weights = conv3d(inputs = pool2_out, filter_size = 3, num_filters = 64, num_channels = 32, strides = [1, 3, 3, 3, 1], layer_name ='conv3_1')
+        relu3_1_out = relu_3d(inputs = conv3_1_out, layer_name='relu3_1')
 
-        # conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_2')
-        # relu3_2_out = relu_3d(inputs = conv3_2_out, layer_name='relu3_2')
+        conv3_2_out, conv3_2_weights = conv3d(inputs = relu3_1_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_2')
+        relu3_2_out = relu_3d(inputs = conv3_2_out, layer_name='relu3_2')
 
-        # conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_3')
-        # relu3_3_out = relu_3d(inputs = conv3_3_out, layer_name='relu3_3')
+        conv3_3_out, conv3_3_weights = conv3d(inputs = relu3_2_out, filter_size = 3, num_filters = 64, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv3_3')
+        relu3_3_out = relu_3d(inputs = conv3_3_out, layer_name='relu3_3')
 
-        # pool3_out = max_pool_3d(inputs = relu3_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool3')
+        pool3_out = max_pool_3d(inputs = relu3_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool3')
 
         # # layer4
-        # conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv4_1')
-        # relu4_1_out = relu_3d(inputs = conv4_1_out, layer_name='relu4_1')
+        conv4_1_out, conv4_1_weights = conv3d(inputs = pool3_out, filter_size = 3, num_filters = 128, num_channels = 64, strides = [1, 3, 3, 3, 1], layer_name ='conv4_1')
+        relu4_1_out = relu_3d(inputs = conv4_1_out, layer_name='relu4_1')
 
-        # conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_2')
-        # relu4_2_out = relu_3d(inputs = conv4_2_out, layer_name='relu4_2')
+        conv4_2_out, conv4_2_weights = conv3d(inputs = relu4_1_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_2')
+        relu4_2_out = relu_3d(inputs = conv4_2_out, layer_name='relu4_2')
 
-        # conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_3')
-        # relu4_3_out = relu_3d(inputs = conv4_3_out, layer_name='relu4_3')
+        conv4_3_out, conv4_3_weights = conv3d(inputs = relu4_2_out, filter_size = 3, num_filters = 128, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv4_3')
+        relu4_3_out = relu_3d(inputs = conv4_3_out, layer_name='relu4_3')
 
-        # pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool4')
+        pool4_out = max_pool_3d(inputs = relu4_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool4')
 
         # # layer5
-        # conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv5_1')
-        # relu5_1_out = relu_3d(inputs = conv5_1_out, layer_name='relu5_1')
+        conv5_1_out, conv5_1_weights = conv3d(inputs = pool4_out, filter_size = 3, num_filters = 256, num_channels = 128, strides = [1, 3, 3, 3, 1], layer_name ='conv5_1')
+        relu5_1_out = relu_3d(inputs = conv5_1_out, layer_name='relu5_1')
 
-        # conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_2')
-        # relu5_2_out = relu_3d(inputs = conv5_2_out, layer_name='relu5_2')
+        conv5_2_out, conv5_2_weights = conv3d(inputs = relu5_1_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_2')
+        relu5_2_out = relu_3d(inputs = conv5_2_out, layer_name='relu5_2')
 
-        # conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_3')
-        # relu5_3_out = relu_3d(inputs = conv5_3_out, layer_name='relu5_3')
+        conv5_3_out, conv5_3_weights = conv3d(inputs = relu5_2_out, filter_size = 3, num_filters = 256, num_channels = 256, strides = [1, 3, 3, 3, 1], layer_name ='conv5_3')
+        relu5_3_out = relu_3d(inputs = conv5_3_out, layer_name='relu5_3')
 
-        # pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool5')
-        flatten5_out, flatten5_features = flatten_3d(pool1_out, layer_name='flatten5')
+        pool5_out = max_pool_3d(inputs = relu5_3_out, filter_size = [1, 2, 2, 2, 1], strides = [1, 2, 2, 2, 1], layer_name ='pool5')
+        flatten5_out, flatten5_features = flatten_3d(pool5_out, layer_name='flatten5')
 
         # layer6
         dense6_out = dense_3d(inputs=flatten5_out, num_inputs=int(flatten5_out.shape[1]), num_outputs=4096, layer_name ='fc6')
         relu6_out = relu_3d(inputs = dense6_out, layer_name='relu6')
-        dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = 0.5, layer_name='drop6')
+        dropout6_out = dropout_3d(inputs = relu6_out, keep_prob = keep_prob, layer_name='drop6')
 
         # layer7
-        # dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, layer_name ='fc7')
-        # relu7_out = relu_3d(inputs = dense7_out, layer_name='relu7')
-        # dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = 0.5, layer_name='drop7')
+        dense7_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=4096, layer_name ='fc7')
+        relu7_out = relu_3d(inputs = dense7_out, layer_name='relu7')
+        dropout7_out = dropout_3d(inputs = relu7_out, keep_prob = keep_prob, layer_name='drop7')
 
         # layer8
-        dense8_out = dense_3d(inputs=dropout6_out, num_inputs=int(dropout6_out.shape[1]), num_outputs=1000, layer_name ='fc8')
+        dense8_out = dense_3d(inputs=dropout7_out, num_inputs=int(dropout7_out.shape[1]), num_outputs=1000, layer_name ='fc8')
 
         # layer9
         dense9_out = dense_3d(inputs=dense8_out, num_inputs=int(dense8_out.shape[1]), num_outputs=FLAGS.num_classes, layer_name ='fc9')
@@ -325,25 +337,26 @@ def train_3d_nn():
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
             tf.summary.scalar('accuracy', accuracy)
 
-        # with tf.name_scope('weighted_log_loss'):
-        #     weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15) + tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        #     tf.summary.scalar('weighted_log_loss', weighted_log_loss)
+        with tf.name_scope('weighted_log_loss'):
+            weighted_log_loss = tf.losses.log_loss(y_labels, y, weights=class_weights, epsilon=10e-15) #+ tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+            tf.summary.scalar('weighted_log_loss', weighted_log_loss)
 
-        # with tf.name_scope('weighted_softmax_cross_entropy'):
-        #     weighted_softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out, weights=cross_entropy_weights)
-        #     tf.summary.scalar('weighted_softmax_cross_entropy', weighted_softmax_cross_entropy)
+        with tf.name_scope('weighted_softmax_cross_entropy'):
+            weighted_softmax_cross_entropy = tf.losses.softmax_cross_entropy(y_labels, dense9_out, weights=cross_entropy_weights)
+            tf.summary.scalar('weighted_softmax_cross_entropy', weighted_softmax_cross_entropy)
 
         with tf.name_scope('sparse_softmax_cross_entropy'):
             y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
             sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out) #+ tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
             tf.summary.scalar('sparse_softmax_cross_entropy', sparse_softmax_cross_entropy)
 
-        # with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
-        #     y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
-        #     weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out, weights=cross_entropy_weights)
-        #     tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
+        with tf.name_scope('weighted_sparse_softmax_cross_entropy'):
+            y_labels_argmax_int = tf.to_int32(tf.argmax(y_labels, axis=1))
+            weighted_sparse_softmax_cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_labels_argmax_int, logits=dense9_out, weights=cross_entropy_weights)
+            tf.summary.scalar('weighted_sparse_softmax_cross_entropy', weighted_sparse_softmax_cross_entropy)
 
         # Class Based Metrics calculations
+
         y_pred_class = tf.argmax(y, 1)
         y_labels_class = tf.argmax(y_labels, 1)
 
@@ -354,14 +367,14 @@ def train_3d_nn():
         sum_row_2 = tf.reduce_sum(confusion_matrix[2, :])
         sum_row_3 = tf.reduce_sum(confusion_matrix[3, :])
         sum_row_4 = tf.reduce_sum(confusion_matrix[4, :])
-        sum_row_5 = tf.reduce_sum(confusion_matrix[5, :])
+        #sum_row_5 = tf.reduce_sum(confusion_matrix[5, :])
 
         sum_col_0 = tf.reduce_sum(confusion_matrix[:, 0])
         sum_col_1 = tf.reduce_sum(confusion_matrix[:, 1])
         sum_col_2 = tf.reduce_sum(confusion_matrix[:, 2])
         sum_col_3 = tf.reduce_sum(confusion_matrix[:, 3])
         sum_col_4 = tf.reduce_sum(confusion_matrix[:, 4])
-        sum_col_5 = tf.reduce_sum(confusion_matrix[:, 5])
+        #sum_col_5 = tf.reduce_sum(confusion_matrix[:, 5])
 
         sum_all = tf.reduce_sum(confusion_matrix[:, :])
 
@@ -371,14 +384,14 @@ def train_3d_nn():
             precision_2 = confusion_matrix[2,2] / sum_col_2
             precision_3 = confusion_matrix[3,3] / sum_col_3
             precision_4 = confusion_matrix[4,4] / sum_col_4
-            precision_5 = confusion_matrix[5,5] / sum_col_5
+            # precision_5 = confusion_matrix[5,5] / sum_col_5
 
             tf.summary.scalar('precision_0', precision_0)
             tf.summary.scalar('precision_1', precision_1)
             tf.summary.scalar('precision_2', precision_2)
             tf.summary.scalar('precision_3', precision_3)
             tf.summary.scalar('precision_4', precision_4)
-            tf.summary.scalar('precision_5', precision_5)
+            # tf.summary.scalar('precision_5', precision_5)
 
         with tf.name_scope('recall'):
             recall_0 = confusion_matrix[0,0] / sum_row_0
@@ -386,14 +399,14 @@ def train_3d_nn():
             recall_2 = confusion_matrix[2,2] / sum_row_2
             recall_3 = confusion_matrix[3,3] / sum_row_3
             recall_4 = confusion_matrix[4,4] / sum_row_4
-            recall_5 = confusion_matrix[5,5] / sum_row_5
+            # recall_5 = confusion_matrix[5,5] / sum_row_5
 
             tf.summary.scalar('recall_0', recall_0)
             tf.summary.scalar('recall_1', recall_1)
             tf.summary.scalar('recall_2', recall_2)
             tf.summary.scalar('recall_3', recall_3)
             tf.summary.scalar('recall_4', recall_4)
-            tf.summary.scalar('recall_5', recall_5)
+            # tf.summary.scalar('recall_5', recall_5)
 
         with tf.name_scope('specificity'):
             tn_0 = sum_all - (sum_row_0 + sum_col_0 - confusion_matrix[0,0])
@@ -416,16 +429,16 @@ def train_3d_nn():
             fp_4 = sum_col_4 - confusion_matrix[4,4]
             specificity_4 = tn_4 / (tn_4 + fp_4)
 
-            tn_5 = sum_all - (sum_row_5 + sum_col_5 - confusion_matrix[5,5])
-            fp_5 = sum_col_5 - confusion_matrix[5,5]
-            specificity_5 = tn_5 / (tn_5 + fp_5)
+            # tn_5 = sum_all - (sum_row_5 + sum_col_5 - confusion_matrix[5,5])
+            # fp_5 = sum_col_5 - confusion_matrix[5,5]
+            # specificity_5 = tn_5 / (tn_5 + fp_5)
 
             tf.summary.scalar('specificity_0', specificity_0)
             tf.summary.scalar('specificity_1', specificity_1)
             tf.summary.scalar('specificity_2', specificity_2)
             tf.summary.scalar('specificity_3', specificity_3)
             tf.summary.scalar('specificity_4', specificity_4)
-            tf.summary.scalar('specificity_5', specificity_5)
+            # tf.summary.scalar('specificity_5', specificity_5)
 
         with tf.name_scope('true_positives'):
             tp_0 = confusion_matrix[0,0]
@@ -433,14 +446,14 @@ def train_3d_nn():
             tp_2 = confusion_matrix[2,2]
             tp_3 = confusion_matrix[3,3]
             tp_4 = confusion_matrix[4,4]
-            tp_5 = confusion_matrix[5,5]
+            # tp_5 = confusion_matrix[5,5]
 
             tf.summary.scalar('true_positives_0', tp_0)
             tf.summary.scalar('true_positives_1', tp_1)
             tf.summary.scalar('true_positives_2', tp_2)
             tf.summary.scalar('true_positives_3', tp_3)
             tf.summary.scalar('true_positives_4', tp_4)
-            tf.summary.scalar('true_positives_5', tp_5)
+            # tf.summary.scalar('true_positives_5', tp_5)
 
         with tf.name_scope('true_negatives'):
             tf.summary.scalar('true_negatives_0', tn_0)
@@ -448,7 +461,7 @@ def train_3d_nn():
             tf.summary.scalar('true_negatives_2', tn_2)
             tf.summary.scalar('true_negatives_3', tn_3)
             tf.summary.scalar('true_negatives_4', tn_4)
-            tf.summary.scalar('true_negatives_5', tn_5)
+            # tf.summary.scalar('true_negatives_5', tn_5)
 
         with tf.name_scope('false_positives'):
             tf.summary.scalar('false_positives_0', fp_0)
@@ -456,7 +469,7 @@ def train_3d_nn():
             tf.summary.scalar('false_positives_2', fp_2)
             tf.summary.scalar('false_positives_3', fp_3)
             tf.summary.scalar('false_positives_4', fp_4)
-            tf.summary.scalar('false_positives_5', fp_5)
+            # tf.summary.scalar('false_positives_5', fp_5)
 
         with tf.name_scope('false_negatives'):
             fn_0 = sum_row_0 - tp_0
@@ -464,45 +477,45 @@ def train_3d_nn():
             fn_2 = sum_row_2 - tp_2
             fn_3 = sum_row_3 - tp_3
             fn_4 = sum_row_4 - tp_4
-            fn_5 = sum_row_5 - tp_5
+            # fn_5 = sum_row_5 - tp_5
 
             tf.summary.scalar('false_negatives_0', fn_0)
             tf.summary.scalar('false_negatives_1', fn_1)
             tf.summary.scalar('false_negatives_2', fn_2)
             tf.summary.scalar('false_negatives_3', fn_3)
             tf.summary.scalar('false_negatives_4', fn_4)
-            tf.summary.scalar('false_negatives_5', fn_5)
+            # tf.summary.scalar('false_negatives_5', fn_5)
 
-        # with tf.name_scope('log_loss_by_class'):
-        #     log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], epsilon=10e-15)
-        #     log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], epsilon=10e-15)
-        #     log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], epsilon=10e-15)
-        #     log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], epsilon=10e-15)
-        #     log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], epsilon=10e-15)
-        #     log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], epsilon=10e-15)
-        #
-        #     #added extra '_' to avoid tenosorboard name collision with the main log_loss metric
-        #     tf.summary.scalar('log_loss__0', log_loss_0)
-        #     tf.summary.scalar('log_loss__1', log_loss_1)
-        #     tf.summary.scalar('log_loss__2', log_loss_2)
-        #     tf.summary.scalar('log_loss__3', log_loss_3)
-        #     tf.summary.scalar('log_loss__4', log_loss_4)
-        #     tf.summary.scalar('log_loss__5', log_loss_5)
+        with tf.name_scope('log_loss_by_class'):
+            log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], epsilon=10e-15)
+            log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], epsilon=10e-15)
+            log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], epsilon=10e-15)
+            log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], epsilon=10e-15)
+            log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], epsilon=10e-15)
+            # log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], epsilon=10e-15)
+        
+            #added extra '_' to avoid tenosorboard name collision with the main log_loss metric
+            tf.summary.scalar('log_loss__0', log_loss_0)
+            tf.summary.scalar('log_loss__1', log_loss_1)
+            tf.summary.scalar('log_loss__2', log_loss_2)
+            tf.summary.scalar('log_loss__3', log_loss_3)
+            tf.summary.scalar('log_loss__4', log_loss_4)
+            # tf.summary.scalar('log_loss__5', log_loss_5)
 
-        # with tf.name_scope('softmax_cross_entropy_by_class'):
-        #     softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], dense9_out[0])
-        #     softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], dense9_out[1])
-        #     softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], dense9_out[2])
-        #     softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], dense9_out[3])
-        #     softmax_cross_entropy_4 = tf.losses.softmax_cross_entropy(y_labels[4], dense9_out[4])
-        #     softmax_cross_entropy_5 = tf.losses.softmax_cross_entropy(y_labels[5], dense9_out[5])
-        #
-        #     tf.summary.scalar('softmax_cross_entropy_0', softmax_cross_entropy_0)
-        #     tf.summary.scalar('softmax_cross_entropy_1', softmax_cross_entropy_1)
-        #     tf.summary.scalar('softmax_cross_entropy_2', softmax_cross_entropy_2)
-        #     tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
-        #     tf.summary.scalar('softmax_cross_entropy_4', softmax_cross_entropy_4)
-        #     tf.summary.scalar('softmax_cross_entropy_5', softmax_cross_entropy_5)
+        with tf.name_scope('softmax_cross_entropy_by_class'):
+            softmax_cross_entropy_0 = tf.losses.softmax_cross_entropy(y_labels[0], dense9_out[0])
+            softmax_cross_entropy_1 = tf.losses.softmax_cross_entropy(y_labels[1], dense9_out[1])
+            softmax_cross_entropy_2 = tf.losses.softmax_cross_entropy(y_labels[2], dense9_out[2])
+            softmax_cross_entropy_3 = tf.losses.softmax_cross_entropy(y_labels[3], dense9_out[3])
+            softmax_cross_entropy_4 = tf.losses.softmax_cross_entropy(y_labels[4], dense9_out[4])
+            # softmax_cross_entropy_5 = tf.losses.softmax_cross_entropy(y_labels[5], dense9_out[5])
+        
+            tf.summary.scalar('softmax_cross_entropy_0', softmax_cross_entropy_0)
+            tf.summary.scalar('softmax_cross_entropy_1', softmax_cross_entropy_1)
+            tf.summary.scalar('softmax_cross_entropy_2', softmax_cross_entropy_2)
+            tf.summary.scalar('softmax_cross_entropy_3', softmax_cross_entropy_3)
+            tf.summary.scalar('softmax_cross_entropy_4', softmax_cross_entropy_4)
+            # tf.summary.scalar('softmax_cross_entropy_5', softmax_cross_entropy_5)
 
         with tf.name_scope('accuracy_by_class'):
             accuracy_0 = (tp_0 + tn_0)/(tp_0 + fp_0 + fn_0 + tn_0)
@@ -510,29 +523,29 @@ def train_3d_nn():
             accuracy_2 = (tp_2 + tn_2)/(tp_2 + fp_2 + fn_2 + tn_2)
             accuracy_3 = (tp_3 + tn_3)/(tp_3 + fp_3 + fn_3 + tn_3)
             accuracy_4 = (tp_4 + tn_4)/(tp_4 + fp_4 + fn_4 + tn_4)
-            accuracy_5 = (tp_5 + tn_5)/(tp_5 + fp_5 + fn_5 + tn_5)
+            # accuracy_5 = (tp_5 + tn_5)/(tp_5 + fp_5 + fn_5 + tn_5)
 
             tf.summary.scalar('accuracy_0', accuracy_0)
             tf.summary.scalar('accuracy_1', accuracy_1)
             tf.summary.scalar('accuracy_2', accuracy_2)
             tf.summary.scalar('accuracy_3', accuracy_3)
             tf.summary.scalar('accuracy_4', accuracy_4)
-            tf.summary.scalar('accuracy_5', accuracy_5)
+            # tf.summary.scalar('accuracy_5', accuracy_5)
 
-        # with tf.name_scope('weighted_log_loss_by_class'):
-        #     weighted_log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], weights=class_weights[0], epsilon=10e-15)
-        #     weighted_log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], weights=class_weights[1], epsilon=10e-15)
-        #     weighted_log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], weights=class_weights[2], epsilon=10e-15)
-        #     weighted_log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], weights=class_weights[3], epsilon=10e-15)
-        #     weighted_log_loss_3 = tf.losses.log_loss(y_labels[4], y[4], weights=class_weights[4], epsilon=10e-15)
-        #     weighted_log_loss_3 = tf.losses.log_loss(y_labels[5], y[5], weights=class_weights[5], epsilon=10e-15)
-        #
-        #     tf.summary.scalar('weighted_log_loss_0', weighted_log_loss_0)
-        #     tf.summary.scalar('weighted_log_loss_1', weighted_log_loss_1)
-        #     tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
-        #     tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
-        #     tf.summary.scalar('weighted_log_loss_4', weighted_log_loss_4)
-        #     tf.summary.scalar('weighted_log_loss_5', weighted_log_loss_5)
+        with tf.name_scope('weighted_log_loss_by_class'):
+            weighted_log_loss_0 = tf.losses.log_loss(y_labels[0], y[0], weights=class_weights[0], epsilon=10e-15)
+            weighted_log_loss_1 = tf.losses.log_loss(y_labels[1], y[1], weights=class_weights[1], epsilon=10e-15)
+            weighted_log_loss_2 = tf.losses.log_loss(y_labels[2], y[2], weights=class_weights[2], epsilon=10e-15)
+            weighted_log_loss_3 = tf.losses.log_loss(y_labels[3], y[3], weights=class_weights[3], epsilon=10e-15)
+            weighted_log_loss_4 = tf.losses.log_loss(y_labels[4], y[4], weights=class_weights[4], epsilon=10e-15)
+            # weighted_log_loss_5 = tf.losses.log_loss(y_labels[5], y[5], weights=class_weights[5], epsilon=10e-15)
+        
+            tf.summary.scalar('weighted_log_loss_0', weighted_log_loss_0)
+            tf.summary.scalar('weighted_log_loss_1', weighted_log_loss_1)
+            tf.summary.scalar('weighted_log_loss_2', weighted_log_loss_2)
+            tf.summary.scalar('weighted_log_loss_3', weighted_log_loss_3)
+            tf.summary.scalar('weighted_log_loss_4', weighted_log_loss_4)
+            # tf.summary.scalar('weighted_log_loss_5', weighted_log_loss_5)
 
         with tf.name_scope('f1_score_by_class'):
             f1_score_0 = 2 * (precision_0 * recall_0) / (precision_0 + recall_0)
@@ -540,7 +553,7 @@ def train_3d_nn():
             f1_score_2 = 2 * (precision_2 * recall_2) / (precision_2 + recall_2)
             f1_score_3 = 2 * (precision_3 * recall_3) / (precision_3 + recall_3)
             f1_score_4 = 2 * (precision_4 * recall_4) / (precision_4 + recall_4)
-            f1_score_5 = 2 * (precision_5 * recall_5) / (precision_5 + recall_5)
+            # f1_score_5 = 2 * (precision_5 * recall_5) / (precision_5 + recall_5)
 
             #f1_score = (f1_score_0 * 40591.0/69920.0) + (f1_score_1 * 14624.0/69920.0) + (f1_score_2 * 10490.0/69920.0) + (f1_score_3 *4215.0/ 69920.0)
             tf.summary.scalar('f1_score_0', f1_score_0)
@@ -548,10 +561,10 @@ def train_3d_nn():
             tf.summary.scalar('f1_score_2', f1_score_2)
             tf.summary.scalar('f1_score_3', f1_score_3)
             tf.summary.scalar('f1_score_4', f1_score_4)
-            tf.summary.scalar('f1_score_5', f1_score_5)
+            # tf.summary.scalar('f1_score_5', f1_score_5)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(softmax_cross_entropy)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, name='adam_optimizer').minimize(log_loss)
 
         merged = tf.summary.merge_all()
         saver = tf.train.Saver()
@@ -603,7 +616,7 @@ def train_3d_nn():
 
 if __name__ == '__main__':
     start_time = time.time()
-    DATA_PATH = '/kaggle_2/lidc_idri/data/all_nodules_nz/'
+    DATA_PATH = '/kaggle_2/lidc_idri/data/nodules_nz_aug/'
     TENSORBOARD_SUMMARIES = '/kaggle_2/lidc_idri/tensorboard_summaries/'
     MODELS = '/kaggle_2/lidc_idri/models/'
 
@@ -611,18 +624,18 @@ if __name__ == '__main__':
     FLAGS = tf.app.flags.FLAGS
 
     ## Prediction problem specific
-    tf.app.flags.DEFINE_integer('iteration_analysis', 10,
+    tf.app.flags.DEFINE_integer('iteration_analysis', 1000,
                                 """Number of steps after which analysis code is executed""")
     tf.app.flags.DEFINE_integer('chunk_size', 32,
                                 """Size of chunks used.""")
-    tf.app.flags.DEFINE_integer('num_classes', 6,
+    tf.app.flags.DEFINE_integer('num_classes', 5,
                                 """Number of classes to predict.""")
-    tf.app.flags.DEFINE_integer('batch_size', 32,
+    tf.app.flags.DEFINE_integer('batch_size', 64,
                                 """Number of items in a batch.""")
-    tf.app.flags.DEFINE_integer('max_iterations', 24000,
+    tf.app.flags.DEFINE_integer('max_iterations', 100000,
                                 """Number of batches to run.""")
-    tf.app.flags.DEFINE_float('reg_constant', 0.1, 'Regularization constant.')
-    tf.app.flags.DEFINE_float('dropout', 0.5, 'Dropout')
+    tf.app.flags.DEFINE_float('reg_constant', 0.0, 'Regularization constant')
+    tf.app.flags.DEFINE_float('keep_prob', 1.0, 'Dropout keep probablity')
     tf.app.flags.DEFINE_float('require_improvement_percentage', 0.20,
                                 """Percent of max_iterations after which optimization will be halted if no improvement found""")
     tf.app.flags.DEFINE_float('iteration_analysis_percentage', 0.10,
