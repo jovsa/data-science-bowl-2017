@@ -6,7 +6,7 @@ This repository contains the work done on the [Kaggle Data Science Bowl 2017 com
 
 **Evaluation criteria**: LogLoss
 
-**Infrastrucre Used**: 
+**Infrastructure Used**: 
 * Operating system: Ubuntu 16.04.2 LTS
 * Machine: NC12 - 12 cores (E5-2690v3), 112 GB memory, 680 GB SSD
 * GPU: 2 X K80 Tesla GPU
