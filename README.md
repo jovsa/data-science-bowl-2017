@@ -1,6 +1,6 @@
 ## [Data Science Bowl 2017](https://www.kaggle.com/c/data-science-bowl-2017) 
 
-This competition collaboration between [@malhotraa](https://www.kaggle.com/amalhotra), [@JovanSardinha](https://www.kaggle.com/jsardinha)
+This work is a collaboration between [@malhotraa](https://www.kaggle.com/amalhotra), [@JovanSardinha](https://www.kaggle.com/jsardinha)
 
 **Objective of the competition**: Help detect early stage lung cancer from patient CT scans
 
